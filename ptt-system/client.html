@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PTT</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .app {
+            width: 100%;
+            max-width: 380px;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        .title {
+            font-size: 1.5rem;
+            font-weight: 300;
+            color: #666;
+            margin-bottom: 40px;
+        }
+        
+        .connection-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group:last-of-type {
+            margin-bottom: 32px;
+        }
+        
+        .input-label {
+            display: block;
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            background: #f8f9fa;
+            color: #333;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus {
+            background: white;
+            border-color: #dee2e6;
+            transform: translateY(-1px);
+        }
+        
+        .input-field::placeholder {
+            color: #999;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            outline: none;
+            margin-bottom: 12px;
+        }
+        
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #222;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-success {
+            background: #333;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #222;
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            background: #e9ecef;
+            color: #999;
+        }
+        
+        .main-interface {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+            width: 100%;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .main-interface.active {
+            display: flex;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .status-display {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .user-count {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .broadcast-status {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #333;
+            min-height: 24px;
+        }
+        
+        .ptt-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .ptt-button {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: white;
+            position: relative;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            touch-action: manipulation;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .ptt-ready {
+            background: #333;
+        }
+        
+        .ptt-ready:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .ptt-active {
+            background: #666;
+            transform: scale(1.1);
+            animation: recording 2s infinite;
+        }
+        
+        .ptt-disabled {
+            background: #e9ecef;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
+        @keyframes recording {
+            0%, 100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); }
+            50% { box-shadow: 0 6px 30px rgba(0, 0, 0, 0.4); }
+        }
+        
+        .ptt-instruction {
+            font-size: 0.9rem;
+            color: #666;
+            text-align: center;
+            max-width: 250px;
+        }
+        
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            pointer-events: none;
+        }
+        
+        .toast {
+            background: white;
+            color: #333;
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            transform: translateY(-100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            border: 1px solid #e9ecef;
+            max-width: 300px;
+            text-align: center;
+        }
+        
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .toast.success {
+            background: #333;
+            color: white;
+        }
+        
+        .toast.error {
+            background: #333;
+            color: white;
+        }
+        
+        .toast.info {
+            background: white;
+            color: #333;
+        }
+        
+        .disconnect-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            color: #333;
+            padding: 12px 16px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .disconnect-btn:hover {
+            background: #f8f9fa;
+            transform: translateY(-1px);
+        }
+        
+        .broadcasting-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #333;
+            padding: 24px 32px;
+            border-radius: 16px;
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 500;
+            z-index: 999;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .broadcasting-indicator.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .receiving-indicator {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            color: #333;
+            font-size: 1rem;
+            font-weight: 500;
+            z-index: 999;
+            opacity: 0;
+            transform: translateX(-50%) translateY(20px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #e9ecef;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .receiving-indicator.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        @media (max-width: 480px) {
+            .app {
+                padding: 20px 16px;
+            }
+            
+            .ptt-button {
+                width: 180px;
+                height: 180px;
+                font-size: 1.1rem;
+            }
+            
+            .connection-panel {
+                padding: 24px;
+                margin: 0 16px;
+            }
+            
+            .logo {
+                font-size: 2.5rem;
+            }
+            
+            .title {
+                font-size: 1.3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- מסך התחברות -->
+        <div class="connection-screen" id="connectionScreen">
+            <div class="logo">📻</div>
+            <div class="title">PTT Connect</div>
+            
+            <div class="connection-panel">
+                <div class="input-group">
+                    <label class="input-label">כתובת השרת</label>
+                    <input type="text" class="input-field" id="serverAddress" placeholder="השאר ריק לשרת מקומי">
+                </div>
+                
+                <div class="input-group">
+                    <label class="input-label">שם משתמש</label>
+                    <input type="text" class="input-field" id="userName" placeholder="הכנס שם משתמש" maxlength="20">
+                </div>
+                
+                <button class="btn btn-primary" id="micPermissionBtn">🎤 אשר מיקרופון</button>
+                <button class="btn btn-success" id="connectBtn" disabled>התחבר</button>
+            </div>
+        </div>
+        
+        <!-- מסך ראשי -->
+        <div class="main-interface" id="mainInterface">
+            <div class="status-display">
+                <div class="user-count">👥 <span id="userCount">0</span> משתמשים מחוברים</div>
+                <div class="broadcast-status" id="broadcastStatus">מוכן לשידור</div>
+            </div>
+            
+            <div class="ptt-container">
+                <button class="ptt-button ptt-disabled" id="pttButton" disabled>
+                    לחץ לשידור
+                </button>
+                <div class="ptt-instruction">לחץ והחזק לשידור</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- כפתור ניתוק -->
+    <button class="disconnect-btn" id="disconnectBtn" style="display: none;">התנתק</button>
+    
+    <!-- אינדיקטור שידור -->
+    <div class="broadcasting-indicator" id="broadcastingIndicator">
+        🎙️ אתה משדר עכשיו
+    </div>
+    
+    <!-- אינדיקטור קבלה -->
+    <div class="receiving-indicator" id="receivingIndicator">
+        🔊 <span id="broadcasterName"></span> משדר
+    </div>
+    
+    <!-- מיכל הודעות -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        let socket = null;
+        let mediaRecorder = null;
+        let audioStream = null;
+        let audioContext = null;
+        let isConnected = false;
+        let isBroadcasting = false;
+        let userName = '';
+        let serverAddress = '';
+        let audioChunks = [];
+
+        // זיהוי סוג מכשיר
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+        // אלמנטים
+        const connectionScreen = document.getElementById('connectionScreen');
+        const mainInterface = document.getElementById('mainInterface');
+        const pttButton = document.getElementById('pttButton');
+        const userCountSpan = document.getElementById('userCount');
+        const broadcastStatusDiv = document.getElementById('broadcastStatus');
+        const userNameInput = document.getElementById('userName');
+        const serverAddressInput = document.getElementById('serverAddress');
+        const connectBtn = document.getElementById('connectBtn');
+        const micPermissionBtn = document.getElementById('micPermissionBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const broadcastingIndicator = document.getElementById('broadcastingIndicator');
+        const receivingIndicator = document.getElementById('receivingIndicator');
+        const broadcasterNameSpan = document.getElementById('broadcasterName');
+        const toastContainer = document.getElementById('toastContainer');
+
+        // הצגת הודעות Toast
+        function showToast(message, type = 'info', duration = 3000) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 100);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (toastContainer.contains(toast)) {
+                        toastContainer.removeChild(toast);
+                    }
+                }, 300);
+            }, duration);
+        }
+
+        // בקשת הרשאה למיקרופון - תיקון למובייל
+        async function requestMicPermission() {
+            try {
+                micPermissionBtn.textContent = '🔄 מבקש הרשאה...';
+                micPermissionBtn.disabled = true;
+                
+                // במובייל, נותן הרשאה אוטומטית לחיבור בלי מיקרופון קודם
+                if (isMobile) {
+                    micPermissionBtn.textContent = '✅ מובייל מוכן';
+                    connectBtn.disabled = false;
+                    showToast('במובייל המיקרופון יאושר בעת החיבור', 'info');
+                    return;
+                }
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 44100,
+                        channelCount: 1
+                    } 
+                });
+                
+                if (audioStream) {
+                    audioStream.getTracks().forEach(track => track.stop());
+                }
+                audioStream = stream;
+                
+                micPermissionBtn.textContent = '✅ מיקרופון מאושר';
+                connectBtn.disabled = false;
+                
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                showToast('מיקרופון מאושר בהצלחה!', 'success');
+                
+            } catch (error) {
+                // גם אם נכשל, במובייל נאפשר חיבור
+                if (isMobile) {
+                    micPermissionBtn.textContent = '⚠️ ינסה בחיבור';
+                    connectBtn.disabled = false;
+                    showToast('המיקרופון יאושר בעת החיבור', 'info');
+                } else {
+                    micPermissionBtn.textContent = '❌ נסה שוב';
+                    micPermissionBtn.disabled = false;
+                    showToast('לא ניתן לגשת למיקרופון', 'error');
+                }
+            }
+        }
+
+        // התחברות לשרת
+        function connectToServer() {
+            userName = userNameInput.value.trim() || `User_${Math.random().toString(36).substr(2, 6)}`;
+            serverAddress = serverAddressInput.value.trim();
+            
+            if (!serverAddress) {
+                serverAddress = window.location.origin;
+            } else {
+                if (!serverAddress.includes('://')) {
+                    serverAddress = window.location.protocol + '//' + serverAddress;
+                }
+            }
+            
+            if (socket) {
+                socket.disconnect();
+            }
+
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'מתחבר...';
+
+            try {
+                socket = io(serverAddress, {
+                    timeout: 10000,
+                    forceNew: true
+                });
+                
+                socket.on('connect', () => {
+                    isConnected = true;
+                    showToast(`התחברת בהצלחה כ-${userName}`, 'success');
+                    
+                    connectionScreen.style.display = 'none';
+                    mainInterface.classList.add('active');
+                    disconnectBtn.style.display = 'block';
+                    
+                    socket.emit('user_join', { name: userName });
+                    initializeAudio();
+                });
+
+                socket.on('connect_error', (error) => {
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'התחבר';
+                    showToast('שגיאה בחיבור לשרת', 'error');
+                });
+
+                socket.on('disconnect', (reason) => {
+                    isConnected = false;
+                    showToast('התנתקת מהשרת', 'info');
+                    resetToConnectionScreen();
+                });
+
+                socket.on('users_count', (data) => {
+                    userCountSpan.textContent = data.count;
+                });
+
+                socket.on('broadcast_started', (data) => {
+                    broadcastStatusDiv.textContent = 'מישהו משדר';
+                    broadcasterNameSpan.textContent = data.broadcasterName;
+                    receivingIndicator.classList.add('show');
+                    
+                    if (isMobile && navigator.vibrate) {
+                        navigator.vibrate(200);
+                    }
+                });
+
+                socket.on('broadcast_ended', (data) => {
+                    broadcastStatusDiv.textContent = 'מוכן לשידור';
+                    receivingIndicator.classList.remove('show');
+                    
+                    if (isMobile && navigator.vibrate) {
+                        navigator.vibrate([100, 100, 100]);
+                    }
+                });
+
+                socket.on('receive_audio', (data) => {
+                    // רק מי שלא משדר ישמע את האודיו
+                    if (!isBroadcasting) {
+                        playAudio(data.audioData);
+                    }
+                });
+
+                socket.on('broadcast_blocked', (data) => {
+                    showToast(data.message, 'error');
+                    stopBroadcast();
+                    
+                    if (isMobile && navigator.vibrate) {
+                        navigator.vibrate([50, 50, 50, 50, 50]);
+                    }
+                });
+
+            } catch (error) {
+                connectBtn.disabled = false;
+                connectBtn.textContent = 'התחבר';
+                showToast('שגיאה ביצירת חיבור', 'error');
+            }
+        }
+
+        // איפוס למסך התחברות
+        function resetToConnectionScreen() {
+            mainInterface.classList.remove('active');
+            connectionScreen.style.display = 'block';
+            disconnectBtn.style.display = 'none';
+            connectBtn.disabled = false;
+            connectBtn.textContent = 'התחבר';
+            pttButton.disabled = true;
+            pttButton.className = 'ptt-button ptt-disabled';
+            broadcastingIndicator.classList.remove('show');
+            receivingIndicator.classList.remove('show');
+        }
+
+        // ניתוק ידני
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+            }
+            resetToConnectionScreen();
+        }
+
+        // אתחול אודיו - עם טיפול מיוחד למובייל
+        async function initializeAudio() {
+            if (audioStream) {
+                pttButton.disabled = false;
+                pttButton.className = 'ptt-button ptt-ready';
+                return;
+            }
+            
+            try {
+                const constraints = {
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: isMobile ? 22050 : 44100,
+                        channelCount: 1
+                    }
+                };
+                
+                // במובייל, נבקש מיקרופון רק כשמתחברים
+                audioStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                if (isIOS && audioContext.state === 'suspended') {
+                    // ב-iOS, נחכה ללחיצה על PTT לאקטיבציה
+                    showToast('ב-iOS: לחץ על כפתור השידור לאקטיבציה', 'info');
+                }
+                
+                pttButton.disabled = false;
+                pttButton.className = 'ptt-button ptt-ready';
+                
+                if (isMobile) {
+                    showToast('מיקרופון מאושר! מוכן לשידור', 'success');
+                }
+                
+            } catch (error) {
+                showToast('שגיאה בגישה למיקרופון - נסה שוב מהגדרות הדפדפן', 'error');
+                
+                // במובייל, נותן הודעה ברורה
+                if (isMobile) {
+                    showToast('פתח הגדרות אתר ואפשר מיקרופון', 'info', 5000);
+                }
+            }
+        }
+
+        // התחלת שידור - עם אקטיבציה של אודיו במובייל
+        function startBroadcast() {
+            if (!isConnected || isBroadcasting) return;
+
+            // אקטיבציה של Audio Context ב-iOS בלחיצה ראשונה
+            if (isIOS && audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    showToast('אודיו הופעל ב-iOS', 'success', 2000);
+                });
+            }
+
+            if (!audioStream) {
+                showToast('אין גישה למיקרופון', 'error');
+                return;
+            }
+
+            try {
+                audioChunks = [];
+                
+                let options = {};
+                if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                    options.mimeType = 'audio/webm;codecs=opus';
+                } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                    options.mimeType = 'audio/webm';
+                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    options.mimeType = 'audio/mp4';
+                }
+                
+                mediaRecorder = new MediaRecorder(audioStream, options);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    if (audioChunks.length > 0) {
+                        const finalBlob = new Blob(audioChunks, { type: options.mimeType || 'audio/webm' });
+                        
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const arrayBuffer = reader.result;
+                            socket.emit('audio_stream', arrayBuffer);
+                        };
+                        reader.readAsArrayBuffer(finalBlob);
+                    }
+                };
+
+                mediaRecorder.start();
+                socket.emit('start_broadcast', { userName });
+                
+                isBroadcasting = true;
+                pttButton.className = 'ptt-button ptt-active';
+                pttButton.textContent = '🎙️ משדר';
+                broadcastStatusDiv.textContent = 'אתה משדר';
+                broadcastingIndicator.classList.add('show');
+                
+                if (isMobile && navigator.vibrate) {
+                    navigator.vibrate(100);
+                }
+                
+            } catch (error) {
+                showToast('שגיאה בהתחלת שידור: ' + error.message, 'error');
+                isBroadcasting = false;
+            }
+        }
+
+        // עצירת שידור
+        function stopBroadcast() {
+            if (!isBroadcasting) return;
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            isBroadcasting = false;
+            pttButton.className = 'ptt-button ptt-ready';
+            pttButton.textContent = 'לחץ לשידור';
+            broadcastStatusDiv.textContent = 'מוכן לשידור';
+            broadcastingIndicator.classList.remove('show');
+            
+            if (isMobile && navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            
+            setTimeout(() => {
+                socket.emit('end_broadcast');
+            }, 100);
+        }
+
+        // השמעת אודיו
+        async function playAudio(audioData) {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
+                const source = audioContext.createBufferSource();
+                const gainNode = audioContext.createGain();
+                
+                source.buffer = audioBuffer;
+                gainNode.gain.value = 1.0;
+                
+                source.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                source.start(0);
+                
+            } catch (error) {
+                // Fallback להשמעה רגילה
+                try {
+                    const blob = new Blob([audioData], { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(blob);
+                    const audio = new Audio(audioUrl);
+                    
+                    audio.volume = 1.0;
+                    audio.play().then(() => {
+                        audio.onended = () => URL.revokeObjectURL(audioUrl);
+                    });
+                } catch (fallbackError) {
+                    console.error('Audio playback failed:', fallbackError);
+                }
+            }
+        }
+
+        // אירועי PTT Button - דסקטופ
+        if (!isMobile) {
+            pttButton.addEventListener('mousedown', startBroadcast);
+            pttButton.addEventListener('mouseup', stopBroadcast);
+            pttButton.addEventListener('mouseleave', stopBroadcast);
+            
+            // מקשי מקלדת
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && !isBroadcasting && isConnected) {
+                    e.preventDefault();
+                    startBroadcast();
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (e.code === 'Space' && isBroadcasting) {
+                    e.preventDefault();
+                    stopBroadcast();
+                }
+            });
+        }
+
+        // אירועי PTT Button - מובייל
+        if (isMobile) {
+            let touchStarted = false;
+            
+            pttButton.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                touchStarted = true;
+                setTimeout(() => {
+                    if (touchStarted) {
+                        startBroadcast();
+                    }
+                }, 50);
+            }, { passive: false });
+
+            pttButton.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                touchStarted = false;
+                stopBroadcast();
+            }, { passive: false });
+
+            pttButton.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                touchStarted = false;
+                stopBroadcast();
+            }, { passive: false });
+            
+            pttButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        }
+
+        // אירועי כפתורים
+        micPermissionBtn.addEventListener('click', requestMicPermission);
+        connectBtn.addEventListener('click', connectToServer);
+        disconnectBtn.addEventListener('click', disconnect);
+
+        // Enter לחיבור
+        userNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !connectBtn.disabled) {
+                connectToServer();
+            }
+        });
+
+        serverAddressInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !connectBtn.disabled) {
+                connectToServer();
+            }
+        });
+
+        // טיפול בסגירת חלון
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        // אקטיבציה של Audio Context ב-iOS
+        if (isIOS) {
+            document.addEventListener('touchstart', () => {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+            }, { once: true });
+        }
+    </script>
+</body>
+</html>
