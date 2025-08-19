@@ -1,46 +1,11 @@
 const express = require('express');
-const https = require('https');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
-
-// יצירת תעודת SSL זמנית (לפיתוח בלבד)
-const sslOptions = {
-  key: generatePrivateKey(),
-  cert: generateCertificate()
-};
-
-// תעודה זמנית לפיתוח
-function generatePrivateKey() {
-  return `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKB
-wQNneCjN6fEiOpjWZoRSEF1BTnVU3w8QGKRR4nxhFkSzJhOt82URHPcHRdgR8xFP
-kkUOF7H8i7q+QgQ6H4q9v+zFkM5J7MhK5zKhM3vdN+z3Nj9YbhKy8zO2yz5L3B
------END PRIVATE KEY-----`;
-}
-
-function generateCertificate() {
-  return `-----BEGIN CERTIFICATE-----
-MIIDXTCCAkWgAwIBAgIJAJ3z5Y4xJ5qzMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
-BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
-aWRnaXRzIFB0eSBMdGQwHhcNMjMwMTE4MTkzODQ4WhcNMjQwMTE4MTkzODQ4WjBF
------END CERTIFICATE-----`;
-}
-
-// השתמש ב-HTTP פשוט אם אין SSL
-let server;
-try {
-  server = https.createServer(sslOptions, app);
-  console.log('🔒 HTTPS Server enabled');
-} catch (error) {
-  server = http.createServer(app);
-  console.log('⚠️ HTTP Server (no SSL)');
-}
-
+const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: "*",
@@ -51,13 +16,76 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
-// הגש קבצים סטטיים (כולל HTML)
+// הגש קבצים סטטיים
 app.use(express.static(path.join(__dirname)));
 
 let connectedUsers = new Map();
 let currentBroadcaster = null;
 
-// דף בדיקה עם לינק לאפליקציה
+// PWA Manifest
+app.get('/manifest.json', (req, res) => {
+  res.json({
+    "name": "PTT Voice Chat",
+    "short_name": "PTT",
+    "description": "Push-To-Talk voice chat application",
+    "start_url": "/client.html",
+    "display": "standalone",
+    "background_color": "#f8f9fa",
+    "theme_color": "#333333",
+    "orientation": "portrait-primary",
+    "categories": ["communication", "social"],
+    "lang": "he",
+    "dir": "rtl",
+    "icons": [
+      {
+        "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjE5MiIgaGVpZ2h0PSIxOTIiIGZpbGw9IiMzMzMzMzMiIHJ4PSIyNCIvPjwvc3ZnPg==",
+        "sizes": "192x192",
+        "type": "image/svg+xml"
+      }
+    ],
+    "prefer_related_applications": false,
+    "scope": "/",
+    "id": "ptt-voice-chat"
+  });
+});
+
+// Service Worker
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(`
+    const CACHE_NAME = 'ptt-chat-v1';
+    const urlsToCache = [
+      '/client.html',
+      '/manifest.json'
+    ];
+
+    self.addEventListener('install', (event) => {
+      event.waitUntil(
+        caches.open(CACHE_NAME)
+          .then((cache) => cache.addAll(urlsToCache))
+      );
+    });
+
+    self.addEventListener('fetch', (event) => {
+      event.respondWith(
+        caches.match(event.request)
+          .then((response) => response || fetch(event.request))
+      );
+    });
+
+    self.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'KEEP_ALIVE') {
+        console.log('SW: Keep alive signal received');
+      }
+    });
+
+    setInterval(() => {
+      console.log('SW: Staying alive...');
+    }, 30000);
+  `);
+});
+
+// עמוד בית
 app.get('/', (req, res) => {
   const protocol = req.secure ? 'https' : 'http';
   const host = req.get('host');
@@ -74,7 +102,6 @@ app.get('/', (req, res) => {
             .status { color: green; font-weight: bold; margin: 20px 0; }
             .link { display: inline-block; background: #4CAF50; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 10px; }
             .link:hover { background: #45a049; }
-            .warning { background: #ff9800; color: white; padding: 15px; border-radius: 5px; margin: 20px 0; }
         </style>
     </head>
     <body>
@@ -85,13 +112,6 @@ app.get('/', (req, res) => {
             <p>משדר כעת: ${currentBroadcaster ? 'כן' : 'לא'}</p>
             <p>זמן שרת: ${new Date().toLocaleString()}</p>
             
-            ${!req.secure ? `
-            <div class="warning">
-                ⚠️ השרת רץ ב-HTTP - מיקרופון עלול לא לעבוד במובייל
-                <br>למובייל: השתמש ב-chrome://flags או פתח אתר ב-HTTPS
-            </div>
-            ` : ''}
-            
             <h3>🚀 התחל להשתמש:</h3>
             <a href="/client.html" class="link">פתח אפליקציית PTT</a>
             
@@ -99,19 +119,12 @@ app.get('/', (req, res) => {
             <p>במכשיר נייד, עבור לכתובת:</p>
             <code>${protocol}://${host}/client.html</code>
             
-            <h3>🔧 אם מיקרופון לא עובד במובייל:</h3>
-            <ol style="text-align: left; display: inline-block;">
-                <li>Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure</li>
-                <li>הוסף: ${protocol}://${host}</li>
-                <li>הפעל ואתחל דפדפן</li>
-            </ol>
-            
             <h3>📊 סטטיסטיקות:</h3>
             <ul style="text-align: left; display: inline-block;">
                 <li>פרוטוקול: ${protocol.toUpperCase()}</li>
                 <li>פורט: ${req.socket.localPort}</li>
                 <li>Socket.IO פעיל: ✅</li>
-                <li>CORS מאופשר: ✅</li>
+                <li>PWA מאופשר: ✅</li>
             </ul>
         </div>
     </body>
@@ -119,7 +132,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// שאר הקוד נשאר זהה...
+// Socket.IO
 io.on('connection', (socket) => {
   console.log(`🔗 משתמש חדש התחבר: ${socket.id}`);
   
@@ -202,6 +215,10 @@ io.on('connection', (socket) => {
     }
   });
   
+  socket.on('ping', () => {
+    socket.emit('pong');
+  });
+  
   socket.on('get_status', () => {
     socket.emit('server_status', {
       connected: true,
@@ -240,13 +257,12 @@ server.on('error', (error) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, '0.0.0.0', () => {
-  const protocol = server instanceof https.Server ? 'https' : 'http';
   console.log(`
 🚀 שרת PTT פועל על פורט ${PORT}
-📡 גישה מקומית: ${protocol}://localhost:${PORT}
-🌐 גישה מהרשת: ${protocol}://[IP]:${PORT}
+📡 גישה מקומית: http://localhost:${PORT}
+🌐 גישה מהרשת: http://[IP]:${PORT}
 🔊 מוכן לקבל חיבורים...
 📱 פתח /client.html לאפליקציה
-${protocol === 'http' ? '⚠️ למיקרופון במובייל: דרוש HTTPS או chrome://flags' : '🔒 HTTPS מופעל'}
+📦 PWA מאופשר - ניתן להתקין כאפליקציה
   `);
 });
