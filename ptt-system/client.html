@@ -317,6 +317,34 @@
             transform: translate(-50%, -50%) scale(1);
         }
         
+        /* אפקט מסך מלא בזמן שידור */
+        .broadcast-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 998;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .broadcast-overlay.recording {
+            background: rgba(76, 175, 80, 0.1);
+            opacity: 1;
+        }
+        
+        .broadcast-overlay.blocked {
+            background: rgba(244, 67, 54, 0.15);
+            opacity: 1;
+        }
+        
+        .broadcast-overlay.receiving {
+            background: rgba(33, 150, 243, 0.08);
+            opacity: 1;
+        }
+        
         .receiving-indicator {
             position: fixed;
             bottom: 30px;
@@ -371,6 +399,7 @@
     <div class="app">
         <!-- מסך התחברות -->
         <div class="connection-screen" id="connectionScreen">
+            <div class="logo">📻</div>
             <div class="title">PTT Connect</div>
             
             <div class="connection-panel">
@@ -404,6 +433,9 @@
             </div>
         </div>
     </div>
+    
+    <!-- אפקט מסך מלא -->
+    <div class="broadcast-overlay" id="broadcastOverlay"></div>
     
     <!-- כפתור ניתוק -->
     <button class="disconnect-btn" id="disconnectBtn" style="display: none;">התנתק</button>
@@ -451,6 +483,7 @@
         const receivingIndicator = document.getElementById('receivingIndicator');
         const broadcasterNameSpan = document.getElementById('broadcasterName');
         const toastContainer = document.getElementById('toastContainer');
+        const broadcastOverlay = document.getElementById('broadcastOverlay');
 
         // הצגת הודעות Toast
         function showToast(message, type = 'info', duration = 3000) {
@@ -523,9 +556,10 @@
             }
         }
 
-        // מניעת השבתה כשהטאב לא פעיל
+        // מניעת השבתה כשהטאב לא פעיל - חזק יותר
         let wakeLock = null;
         let keepAliveInterval = null;
+        let audioKeepAlive = null;
 
         // הפעלת מצב "ער" כשמתחברים
         async function enableWakeMode() {
@@ -540,20 +574,40 @@
                     if (socket && socket.connected) {
                         socket.emit('ping');
                     }
-                    
-                    // שמירת Audio Context פעיל
-                    if (audioContext && audioContext.state === 'suspended') {
-                        audioContext.resume();
-                    }
-                }, 10000); // כל 10 שניות
+                }, 5000); // כל 5 שניות
                 
-                // מניעת השבתה של הטאב
-                setInterval(() => {
-                    // פעולה קטנה שמחזיקה את הטאב בחיים
-                    if (document.hidden) {
-                        console.log('Keeping tab alive...');
+                // שמירת Audio Context פעיל בתדירות גבוהה
+                audioKeepAlive = setInterval(() => {
+                    if (audioContext) {
+                        if (audioContext.state === 'suspended') {
+                            audioContext.resume().then(() => {
+                                console.log('Audio context resumed for background');
+                            });
+                        }
+                        
+                        // יצירת צליל שקט כדי לשמור על Audio Context
+                        const oscillator = audioContext.createOscillator();
+                        const gainNode = audioContext.createGain();
+                        gainNode.gain.value = 0.001; // כמעט שקט
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioContext.destination);
+                        oscillator.frequency.value = 20000; // תדר גבוה שלא נשמע
+                        oscillator.start();
+                        oscillator.stop(audioContext.currentTime + 0.001);
                     }
-                }, 5000);
+                }, 2000); // כל 2 שניות
+                
+                // רישום Service Worker לעבודה ברקע (אם נתמך)
+                if ('serviceWorker' in navigator) {
+                    const swCode = `
+                        self.addEventListener('message', function(event) {
+                            console.log('Service worker received:', event.data);
+                        });
+                    `;
+                    const blob = new Blob([swCode], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(blob);
+                    navigator.serviceWorker.register(swUrl);
+                }
                 
             } catch (error) {
                 console.log('Wake mode not supported:', error);
@@ -570,6 +624,11 @@
             if (keepAliveInterval) {
                 clearInterval(keepAliveInterval);
                 keepAliveInterval = null;
+            }
+            
+            if (audioKeepAlive) {
+                clearInterval(audioKeepAlive);
+                audioKeepAlive = null;
             }
         }
         function connectToServer() {
@@ -740,7 +799,7 @@
             }
         }
 
-        // התחלת שידור - עם אקטיבציה של אודיו במובייל
+        // התחלת שידור - עם אפקטים ויזואליים
         function startBroadcast() {
             if (!isConnected || isBroadcasting) return;
 
@@ -753,6 +812,11 @@
 
             if (!audioStream) {
                 showToast('אין גישה למיקרופון', 'error');
+                // אפקט אדום - לא ניתן לשדר
+                broadcastOverlay.className = 'broadcast-overlay blocked';
+                setTimeout(() => {
+                    broadcastOverlay.className = 'broadcast-overlay';
+                }, 1000);
                 return;
             }
 
@@ -798,12 +862,20 @@
                 broadcastStatusDiv.textContent = 'אתה משדר';
                 broadcastingIndicator.classList.add('show');
                 
+                // אפקט ירוק עדין על כל המסך
+                broadcastOverlay.className = 'broadcast-overlay recording';
+                
                 if (isMobile && navigator.vibrate) {
                     navigator.vibrate(100);
                 }
                 
             } catch (error) {
                 showToast('שגיאה בהתחלת שידור: ' + error.message, 'error');
+                // אפקט אדום - שגיאה
+                broadcastOverlay.className = 'broadcast-overlay blocked';
+                setTimeout(() => {
+                    broadcastOverlay.className = 'broadcast-overlay';
+                }, 1000);
                 isBroadcasting = false;
             }
         }
@@ -822,6 +894,9 @@
             broadcastStatusDiv.textContent = 'מוכן לשידור';
             broadcastingIndicator.classList.remove('show');
             
+            // הסר את האפקט הירוק
+            broadcastOverlay.className = 'broadcast-overlay';
+            
             if (isMobile && navigator.vibrate) {
                 navigator.vibrate(50);
             }
@@ -831,27 +906,39 @@
             }, 100);
         }
 
-        // השמעת אודיו - עם טיפול בטאב לא פעיל
+        // השמעת אודיו - עם טיפול מחוזק בטאב לא פעיל
         async function playAudio(audioData) {
             try {
+                // כפה חזרה לחיים של Audio Context
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
                 
-                // אקטיבציה חזקה של Audio Context כשהטאב לא פעיל
+                // אקטיבציה חזקה של Audio Context
                 if (audioContext.state === 'suspended') {
                     await audioContext.resume();
                 }
+                
+                // אפקט ויזואלי - מסך כחול עדין בזמן קבלה
+                broadcastOverlay.className = 'broadcast-overlay receiving';
+                setTimeout(() => {
+                    broadcastOverlay.className = 'broadcast-overlay';
+                }, 1000);
                 
                 // שמירת הפוקוס בחלון כדי שלא יושבת
                 if (document.hidden) {
                     // הבהב את הכותרת כדי למשוך תשומת לב
                     document.title = '🔊 שידור מתקבל - PTT';
                     
+                    // נסה להחזיר פוקוס לחלון
+                    if (window.focus) {
+                        window.focus();
+                    }
+                    
                     // החזר את הכותרת אחרי שנייה
                     setTimeout(() => {
                         document.title = 'PTT';
-                    }, 2000);
+                    }, 3000);
                 }
                 
                 const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
@@ -861,15 +948,26 @@
                 source.buffer = audioBuffer;
                 
                 // עוצמה גבוהה יותר כשהטאב לא פעיל
-                gainNode.gain.value = document.hidden ? 1.5 : 1.0;
+                gainNode.gain.value = document.hidden ? 2.0 : 1.0;
                 
                 source.connect(gainNode);
                 gainNode.connect(audioContext.destination);
                 source.start(0);
                 
-                // רטט במובייל גם כשברקע
+                // רטט חזק במובייל גם כשברקע
                 if (isMobile && navigator.vibrate) {
-                    navigator.vibrate([200, 100, 200]);
+                    navigator.vibrate([300, 100, 300, 100, 300]);
+                }
+                
+                // נסה גם להשמיע דרך HTML Audio כגיבוי
+                if (document.hidden) {
+                    const blob = new Blob([audioData], { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(blob);
+                    const backupAudio = new Audio(audioUrl);
+                    backupAudio.volume = 1.0;
+                    backupAudio.play().then(() => {
+                        backupAudio.onended = () => URL.revokeObjectURL(audioUrl);
+                    }).catch(() => {});
                 }
                 
             } catch (error) {
@@ -880,15 +978,7 @@
                     const audio = new Audio(audioUrl);
                     
                     audio.volume = 1.0;
-                    
-                    // הבטח שהאודיו ישמע גם ברקע
                     audio.preload = 'auto';
-                    
-                    // במובייל, השתמש ב-AudioContext כדי לעקוף הגבלות
-                    if (isMobile && audioContext) {
-                        const source = audioContext.createMediaElementSource(audio);
-                        source.connect(audioContext.destination);
-                    }
                     
                     audio.play().then(() => {
                         audio.onended = () => URL.revokeObjectURL(audioUrl);
