@@ -18,6 +18,8 @@ app.use(express.json());
 
 // הגש קבצים סטטיים
 app.use(express.static(path.join(__dirname)));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
 
 let connectedUsers = new Map();
 let currentBroadcaster = null;
