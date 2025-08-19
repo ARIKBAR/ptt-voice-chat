@@ -1,4 +1,8 @@
-<!DOCTYPE html>
+// צלילי מירס מוטבעים
+        const sounds = {
+            mirsBeep: 'data:audio/mpeg;base64,SUQzAwAAAAABAVRYWFgAAAASAAAAbWFqb3JfYnJhbmQATTRBIABUWFhYAAAAEwAAAG1pbm9yX3ZlcnNpb24ANTEyAFRYWFgAAAAcAAAAY29tcGF0aWJsZV9icmFuZHMAaXNvbWlzbzIAVFNTRQAAAA4AAABMYXZmNjEuNy4xMDAAAAAAAAAAAAAAAP/7kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEluZm8AAAAPAAAAEAAAG8AAHh4eHh4eLS0tLS0tPDw8PDw8S0tLS0tLWlpaWlpaWmlpaWlpaXh4eHh4eIeHh4eHh5aWlpaWlaalpaWlpaW0tLS0tLTDw8PDw8PS0tLS0tLS4eHh4eHh8PDw8PDw////////AAAAAExhdmM2MS4xOQAAAAAAAAAAAAAAACQFwgAAAAAAABvAeXjt+wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7kGQAAPKYAtDQwhAKAAANIAAAAQ8g5xzOMM8AAAA0gAAABAACvTkkkuAaYQAAEGAfOPeGGeAAA//zf/+YHh5/6M//f4eHhjpP8fHD3pP//eP6HvwM4I6Hn/r//3//4AAAACA8PDw9IAAAAIDw8PD1oAA73//6EAAABA6qnCwqBR8ZlCQOPKIDLFYw4TsVX6zFQRVpfxMdYOhLhPfEoeExHIR2XykeDq
+             }
+            <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -570,7 +574,23 @@
             }
         }
 
-        // PWA ו-Service Worker setup
+        // צלילי מירס מוטבעים
+        const sounds = {
+            mirsBeep: 'data:audio/mpeg;base64,SUQzAwAAAAABAVRYWFgAAAASAAAAbWFqb3JfYnJhbmQATTRBIABUWFhYAAAAEwAAAG1pbm9yX3ZlcnNpb24ANTEyAFRYWFgAAAAcAAAAY29tcGF0aWJsZV9icmFuZHMAaXNvbWlzbzIAVFNTRQAAAA4AAABMYXZmNjEuNy4xMDAAAAAAAAAAAAAAAP/7kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEluZm8AAAAPAAAAEAAAG8AAHh4eHh4eLS0tLS0tPDw8PDw8S0tLS0tLWlpaWlpaWmlpaWlpaXh4eHh4eIeHh4eHh5aWlpaWlpalpaWlpaW0tLS0tLTDw8PDw8PS0tLS0tLS4eHh4eHh8PDw8PDw////////AAAAAExhdmM2MS4xOQAAAAAAAAAAAAAAACQFwgAAAAAAABvAeXjt+wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7kGQAAPKYAtDQwhAKAAANIAAAAQ8g5xzOMM8AAAA0gAAABAACvTkkkuAaYQAAEGAfOPeGGeAAA'
+        };
+
+        // נגן צלילים
+        function playSound(soundKey, volume = 0.8) {
+            try {
+                if (sounds[soundKey]) {
+                    const audio = new Audio(sounds[soundKey]);
+                    audio.volume = volume;
+                    audio.play().catch(e => console.log('Sound play failed:', e));
+                }
+            } catch (error) {
+                console.log('Sound error:', error);
+            }
+        }
         let deferredPrompt;
         let swRegistration = null;
 
@@ -912,7 +932,7 @@
             }
         }
 
-        // התחלת שידור - עם אפקטים ויזואליים
+        // התחלת שידור - עם צליל מירס
         function startBroadcast() {
             if (!isConnected || isBroadcasting) return;
 
@@ -934,6 +954,9 @@
             }
 
             try {
+                // 🎵 נגן צליל מירס מיד כשלוחצים PTT
+                playSound('mirsBeep', 0.6);
+                
                 audioChunks = [];
                 
                 let options = {};
@@ -966,6 +989,7 @@
                     }
                 };
 
+                // התחל הקלטה מיד אחרי הצליל (בלי עיכוב)
                 mediaRecorder.start();
                 socket.emit('start_broadcast', { userName });
                 
@@ -1019,9 +1043,12 @@
             }, 100);
         }
 
-        // השמעת אודיו - עם טיפול מחוזק בטאב לא פעיל
+        // השמעת אודיו - עם צליל מירס בתחילת קבלה
         async function playAudio(audioData) {
             try {
+                // 🎵 נגן צליל מירס מיד כשמתחיל לקבל שידור
+                playSound('mirsBeep', 0.7);
+                
                 // כפה חזרה לחיים של Audio Context
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -1040,7 +1067,6 @@
                 
                 // שמירת הפוקוס בחלון כדי שלא יושבת
                 if (document.hidden) {
-                    // הבהב את הכותרת כדי למשוך תשומת לב
                     document.title = '🔊 שידור מתקבל - PTT';
                     
                     // נסה להחזיר פוקוס לחלון
@@ -1048,12 +1074,12 @@
                         window.focus();
                     }
                     
-                    // החזר את הכותרת אחרי שנייה
                     setTimeout(() => {
                         document.title = 'PTT';
                     }, 3000);
                 }
                 
+                // השמעת האודיו מיד אחרי הצליל (בלי עיכוב)
                 const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
                 const source = audioContext.createBufferSource();
                 const gainNode = audioContext.createGain();
@@ -1086,6 +1112,9 @@
             } catch (error) {
                 // Fallback משופר להשמעה רגילה
                 try {
+                    // עדיין נגן צליל מירס גם אם יש שגיאה
+                    playSound('mirsBeep', 0.7);
+                    
                     const blob = new Blob([audioData], { type: 'audio/webm' });
                     const audioUrl = URL.createObjectURL(blob);
                     const audio = new Audio(audioUrl);
