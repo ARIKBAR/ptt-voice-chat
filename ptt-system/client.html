@@ -19,401 +19,89 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-            background: #f8f9fa;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #333;
+            font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background:#f8f9fa; min-height:100vh; display:flex; flex-direction:column;
+            align-items:center; justify-content:center; color:#333;
         }
-        
-        .app {
-            width: 100%;
-            max-width: 380px;
-            padding: 40px 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 30px;
-        }
-        
-        .logo {
-            font-size: 3rem;
-            margin-bottom: 10px;
-        }
-        
-        .title {
-            font-size: 1.5rem;
-            font-weight: 300;
-            color: #666;
-            margin-bottom: 40px;
-        }
-        
+        .app { width:100%; max-width:380px; padding:40px 20px; display:flex; flex-direction:column; align-items:center; gap:30px; }
+        .logo { font-size:3rem; margin-bottom:10px; }
+        .title { font-size:1.5rem; font-weight:300; color:#666; margin-bottom:40px; }
+
         .connection-panel {
-            background: white;
-            border-radius: 16px;
-            padding: 32px;
-            width: 100%;
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e9ecef;
+            background:white; border-radius:16px; padding:32px; width:100%;
+            box-shadow:0 2px 20px rgba(0,0,0,0.1); border:1px solid #e9ecef;
         }
-        
-        .input-group {
-            margin-bottom: 20px;
-        }
-        
-        .input-group:last-of-type {
-            margin-bottom: 32px;
-        }
-        
-        .input-label {
-            display: block;
-            font-size: 0.9rem;
-            color: #666;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        
+        .input-group { margin-bottom:20px; } .input-group:last-of-type{ margin-bottom:32px; }
+        .input-label { display:block; font-size:.9rem; color:#666; margin-bottom:8px; font-weight:500; }
         .input-field {
-            width: 100%;
-            padding: 16px 20px;
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            background: #f8f9fa;
-            color: #333;
-            font-size: 1rem;
-            outline: none;
-            transition: all 0.3s ease;
+            width:100%; padding:16px 20px; border:2px solid #e9ecef; border-radius:12px; background:#f8f9fa; color:#333; font-size:1rem; outline:none; transition:.3s;
         }
-        
-        .input-field:focus {
-            background: white;
-            border-color: #dee2e6;
-            transform: translateY(-1px);
-        }
-        
-        .input-field::placeholder {
-            color: #999;
-        }
-        
-        .btn {
-            width: 100%;
-            padding: 18px;
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            outline: none;
-            margin-bottom: 12px;
-        }
-        
-        .btn-primary {
-            background: #333;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #222;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-        }
-        
-        .btn-success {
-            background: #333;
-            color: white;
-        }
-        
-        .btn-success:hover {
-            background: #222;
-            transform: translateY(-2px);
-        }
-        
-        .btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            transform: none;
-            background: #e9ecef;
-            color: #999;
-        }
-        
-        .main-interface {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            gap: 40px;
-            width: 100%;
-            animation: fadeIn 0.5s ease;
-        }
-        
-        .main-interface.active {
-            display: flex;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .status-display {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        .user-count {
-            font-size: 0.9rem;
-            color: #666;
-            margin-bottom: 8px;
-        }
-        
-        .broadcast-status {
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: #333;
-            min-height: 24px;
-        }
-        
-        .ptt-container {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-        }
-        
+        .input-field:focus { background:white; border-color:#dee2e6; transform:translateY(-1px); }
+        .input-field::placeholder { color:#999; }
+
+        .btn { width:100%; padding:18px; border:none; border-radius:12px; font-size:1rem; font-weight:500; cursor:pointer; transition:.3s; outline:none; margin-bottom:12px; }
+        .btn-primary,.btn-success { background:#333; color:white; }
+        .btn-primary:hover,.btn-success:hover { background:#222; transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.2); }
+        .btn:disabled { opacity:.4; cursor:not-allowed; transform:none; background:#e9ecef; color:#999; }
+
+        .main-interface { display:none; flex-direction:column; align-items:center; gap:40px; width:100%; animation:fadeIn .5s ease; }
+        .main-interface.active { display:flex; }
+        @keyframes fadeIn { from{opacity:0; transform:translateY(20px);} to{opacity:1; transform:translateY(0);} }
+
+        .status-display { text-align:center; margin-bottom:20px; }
+        .user-count { font-size:.9rem; color:#666; margin-bottom:8px; }
+        .broadcast-status { font-size:1.1rem; font-weight:500; color:#333; min-height:24px; }
+
+        .ptt-container { position:relative; display:flex; flex-direction:column; align-items:center; gap:20px; }
         .ptt-button {
-            width: 200px;
-            height: 200px;
-            border-radius: 50%;
-            border: none;
-            cursor: pointer;
-            font-size: 1.2rem;
-            font-weight: 500;
-            color: white;
-            position: relative;
-            outline: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            user-select: none;
-            touch-action: manipulation;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            width:200px; height:200px; border-radius:50%; border:none; cursor:pointer; font-size:1.2rem; font-weight:500; color:white; position:relative; outline:none; transition:.3s; user-select:none; touch-action:manipulation; box-shadow:0 4px 20px rgba(0,0,0,0.1);
         }
-        
-        .ptt-ready {
-            background: #333;
-        }
-        
-        .ptt-ready:hover {
-            transform: scale(1.05);
-            box-shadow: 0 6px 30px rgba(0, 0, 0, 0.2);
-        }
-        
-        .ptt-active {
-            background: #666;
-            transform: scale(1.1);
-            animation: recording 2s infinite;
-        }
-        
-        .ptt-disabled {
-            background: #e9ecef;
-            color: #999;
-            cursor: not-allowed;
-        }
-        
-        @keyframes recording {
-            0%, 100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); }
-            50% { box-shadow: 0 6px 30px rgba(0, 0, 0, 0.4); }
-        }
-        
-        .ptt-instruction {
-            font-size: 0.9rem;
-            color: #666;
-            text-align: center;
-            max-width: 250px;
-        }
-        
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            pointer-events: none;
-        }
-        
+        .ptt-ready { background:#333; }
+        .ptt-ready:hover { transform:scale(1.05); box-shadow:0 6px 30px rgba(0,0,0,0.2); }
+        .ptt-active { background:#666; transform:scale(1.1); animation:recording 2s infinite; }
+        .ptt-disabled { background:#e9ecef; color:#999; cursor:not-allowed; }
+        @keyframes recording { 0%,100%{box-shadow:0 4px 20px rgba(0,0,0,0.2);} 50%{box-shadow:0 6px 30px rgba(0,0,0,0.4);} }
+        .ptt-instruction { font-size:.9rem; color:#666; text-align:center; max-width:250px; }
+
+        .toast-container { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:1000; pointer-events:none; }
         .toast {
-            background: white;
-            color: #333;
-            padding: 16px 24px;
-            border-radius: 12px;
-            margin-bottom: 12px;
-            font-size: 0.9rem;
-            transform: translateY(-100px);
-            opacity: 0;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            border: 1px solid #e9ecef;
-            max-width: 300px;
-            text-align: center;
+            background:white; color:#333; padding:16px 24px; border-radius:12px; margin-bottom:12px; font-size:.9rem; transform:translateY(-100px); opacity:0; transition:.3s; box-shadow:0 4px 20px rgba(0,0,0,.15); border:1px solid #e9ecef; max-width:300px; text-align:center;
         }
-        
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-        
-        .toast.success {
-            background: #333;
-            color: white;
-        }
-        
-        .toast.error {
-            background: #f44336;
-            color: white;
-        }
-        
-        .toast.info {
-            background: white;
-            color: #333;
-        }
-        
+        .toast.show{ transform:translateY(0); opacity:1; }
+        .toast.success{ background:#333; color:white; }
+        .toast.error{ background:#f44336; color:white; }
+        .toast.info{ background:white; color:#333; }
+
         .disconnect-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: white;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            color: #333;
-            padding: 12px 16px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position:fixed; top:20px; right:20px; background:white; border:1px solid #e9ecef; border-radius:12px; color:#333; padding:12px 16px; cursor:pointer; font-size:.9rem; transition:.3s; box-shadow:0 2px 10px rgba(0,0,0,.1);
         }
-        
-        .disconnect-btn:hover {
-            background: #f8f9fa;
-            transform: translateY(-1px);
-        }
-        
+        .disconnect-btn:hover { background:#f8f9fa; transform:translateY(-1px); }
+
         .broadcasting-indicator {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #333;
-            padding: 24px 32px;
-            border-radius: 16px;
-            color: white;
-            font-size: 1.1rem;
-            font-weight: 500;
-            z-index: 999;
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.8);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            pointer-events: none;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+            position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#333; padding:24px 32px; border-radius:16px; color:white; font-size:1.1rem; font-weight:500; z-index:999; opacity:0; transform:translate(-50%,-50%) scale(.8); transition:.3s; pointer-events:none; box-shadow:0 8px 30px rgba(0,0,0,.3);
         }
-        
-        .broadcasting-indicator.show {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-        }
-        
-        .broadcast-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 998;
-            pointer-events: none;
-            opacity: 0;
-            transition: all 0.3s ease;
-        }
-        
-        .broadcast-overlay.recording {
-            background: rgba(76, 175, 80, 0.1);
-            opacity: 1;
-        }
-        
-        .broadcast-overlay.blocked {
-            background: rgba(244, 67, 54, 0.15);
-            opacity: 1;
-        }
-        
-        .broadcast-overlay.receiving {
-            background: rgba(33, 150, 243, 0.08);
-            opacity: 1;
-        }
-        
+        .broadcasting-indicator.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+        .broadcast-overlay { position:fixed; top:0; left:0; width:100%; height:100%; z-index:998; pointer-events:none; opacity:0; transition:.3s; }
+        .broadcast-overlay.recording { background:rgba(76,175,80,.1); opacity:1; }
+        .broadcast-overlay.blocked { background:rgba(244,67,54,.15); opacity:1; }
+        .broadcast-overlay.receiving { background:rgba(33,150,243,.08); opacity:1; }
+
         .receiving-indicator {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 16px 24px;
-            border-radius: 12px;
-            color: #333;
-            font-size: 1rem;
-            font-weight: 500;
-            z-index: 999;
-            opacity: 0;
-            transform: translateX(-50%) translateY(20px);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid #e9ecef;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:white; padding:16px 24px; border-radius:12px; color:#333; font-size:1rem; font-weight:500; z-index:999; opacity:0; transform:translateX(-50%) translateY(20px); transition:.3s; border:1px solid #e9ecef; box-shadow:0 4px 20px rgba(0,0,0,.15);
         }
-        
-        .receiving-indicator.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-        
-        #connectionStatus {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            z-index: 10000;
-        }
-        
-        @media (max-width: 480px) {
-            .app {
-                padding: 20px 16px;
-            }
-            
-            .ptt-button {
-                width: 180px;
-                height: 180px;
-                font-size: 1.1rem;
-            }
-            
-            .connection-panel {
-                padding: 24px;
-                margin: 0 16px;
-            }
-            
-            .logo {
-                font-size: 2.5rem;
-            }
-            
-            .title {
-                font-size: 1.3rem;
-            }
+        .receiving-indicator.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+        #connectionStatus { position:fixed; top:10px; left:10px; width:10px; height:10px; border-radius:50%; z-index:10000; }
+
+        @media (max-width:480px){
+            .app{ padding:20px 16px; }
+            .ptt-button{ width:180px; height:180px; font-size:1.1rem; }
+            .connection-panel{ padding:24px; margin:0 16px; }
+            .logo{ font-size:2.5rem; }
+            .title{ font-size:1.3rem; }
         }
     </style>
 </head>
@@ -423,18 +111,15 @@
         <div class="connection-screen" id="connectionScreen">
             <div class="logo">📻</div>
             <div class="title">PTT Connect</div>
-            
             <div class="connection-panel">
                 <div class="input-group">
                     <label class="input-label">שם משתמש</label>
                     <input type="text" class="input-field" id="userName" placeholder="הכנס שם משתמש" maxlength="20">
                 </div>
-                
                 <div class="input-group">
                     <label class="input-label">סיסמה</label>
                     <input type="password" class="input-field" id="userPassword" placeholder="הכנס סיסמה">
                 </div>
-                
                 <button class="btn btn-primary" id="micPermissionBtn">🎤 אשר מיקרופון</button>
                 <button class="btn btn-success" id="connectBtn" disabled>התחבר</button>
             </div>
@@ -446,11 +131,8 @@
                 <div class="user-count">👥 <span id="userCount">0</span> משתמשים מחוברים</div>
                 <div class="broadcast-status" id="broadcastStatus">מוכן לשידור</div>
             </div>
-            
             <div class="ptt-container">
-                <button class="ptt-button ptt-disabled" id="pttButton" disabled>
-                    לחץ לשידור
-                </button>
+                <button class="ptt-button ptt-disabled" id="pttButton" disabled>לחץ לשידור</button>
                 <div class="ptt-instruction">לחץ והחזק לשידור</div>
             </div>
         </div>
@@ -458,28 +140,19 @@
     
     <!-- אפקט מסך מלא -->
     <div class="broadcast-overlay" id="broadcastOverlay"></div>
-    
     <!-- כפתור ניתוק -->
     <button class="disconnect-btn" id="disconnectBtn" style="display: none;">התנתק</button>
-    
     <!-- אינדיקטור שידור -->
-    <div class="broadcasting-indicator" id="broadcastingIndicator">
-        🎙️ אתה משדר עכשיו
-    </div>
-    
+    <div class="broadcasting-indicator" id="broadcastingIndicator">🎙️ אתה משדר עכשיו</div>
     <!-- אינדיקטור קבלה -->
-    <div class="receiving-indicator" id="receivingIndicator">
-        🔊 <span id="broadcasterName"></span> משדר
-    </div>
-    
+    <div class="receiving-indicator" id="receivingIndicator">🔊 <span id="broadcasterName"></span> משדר</div>
     <!-- אינדיקטור חיבור -->
     <div id="connectionStatus"></div>
-    
     <!-- מיכל הודעות -->
     <div class="toast-container" id="toastContainer"></div>
 
     <script>
-        // משתנים גלובליים
+        // ===== משתנים =====
         let socket = null;
         let mediaRecorder = null;
         let audioStream = null;
@@ -493,11 +166,15 @@
         let keepAliveInterval = null;
         let swRegistration = null;
 
-        // זיהוי סוג מכשיר
+        // שער/תור לקבלה (ל"ביפ לפני האזנה")
+        let receivingGateOpen = false;
+        let receivedQueue = [];
+
+        // זיהוי מכשיר
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-        // אלמנטים
+        // ===== DOM =====
         const connectionScreen = document.getElementById('connectionScreen');
         const mainInterface = document.getElementById('mainInterface');
         const pttButton = document.getElementById('pttButton');
@@ -514,66 +191,63 @@
         const toastContainer = document.getElementById('toastContainer');
         const broadcastOverlay = document.getElementById('broadcastOverlay');
 
-        // הגדרת צליל
-        const sounds = {
-            mirsBeep: '/assets/beep.mp3'
-        };
+        // ===== צליל =====
+        const sounds = { mirsBeep: '/assets/beep.mp3' };
 
-        // פונקציות עזר
+        // נגן שמחזיר Promise כדי שאפשר יהיה await
+        function playBeep(volume = 0.7) {
+            return new Promise((resolve) => {
+                try {
+                    const src = sounds.mirsBeep;
+                    if (!src) return resolve();
+                    const a = new Audio(src);
+                    a.volume = volume;
+                    a.addEventListener('ended', () => resolve(), { once:true });
+                    a.addEventListener('error', () => resolve(), { once:true });
+                    const p = a.play();
+                    if (p && typeof p.then === 'function') p.catch(() => resolve());
+                } catch (_) { resolve(); }
+            });
+        }
+        // לשימושים לא־קריטיים (לא מחכים לסיום)
+        function playSound(soundKey, volume = 0.8) {
+            try {
+                const src = sounds[soundKey];
+                if (!src) return;
+                const a = new Audio(src);
+                a.volume = volume;
+                a.play().catch(()=>{});
+            } catch (_) {}
+        }
+
+        // ===== טוסטים =====
         function showToast(message, type = 'info', duration = 3000) {
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             toast.textContent = message;
             toastContainer.appendChild(toast);
-            
             setTimeout(() => toast.classList.add('show'), 100);
-            
             setTimeout(() => {
                 toast.classList.remove('show');
-                setTimeout(() => {
-                    if (toastContainer.contains(toast)) {
-                        toastContainer.removeChild(toast);
-                    }
-                }, 300);
+                setTimeout(() => toast.remove(), 300);
             }, duration);
         }
 
-        function playSound(soundKey, volume = 0.8) {
-            try {
-                if (sounds[soundKey]) {
-                    const audio = new Audio(sounds[soundKey]);
-                    audio.volume = volume;
-                    audio.play().catch(e => console.log('Sound play failed:', e));
-                }
-            } catch (error) {
-                console.log('Sound error:', error);
-            }
-        }
-
-        // שמירה וטעינת פרטי חיבור
+        // ===== שמירת פרטי חיבור =====
         function saveConnectionDetails() {
             localStorage.setItem('ptt_userName', userName);
             localStorage.setItem('ptt_password', userPassword);
             localStorage.setItem('ptt_lastConnected', Date.now());
         }
-
         function loadConnectionDetails() {
             const savedUserName = localStorage.getItem('ptt_userName');
             const savedPassword = localStorage.getItem('ptt_password');
             const lastConnected = localStorage.getItem('ptt_lastConnected');
-            
-            if (savedUserName) {
-                userNameInput.value = savedUserName;
-            }
-            
-            if (savedPassword) {
-                userPasswordInput.value = savedPassword;
-            }
-            
-            // התחבר אוטומטית אם היה מחובר בשעה האחרונה
+            if (savedUserName) userNameInput.value = savedUserName;
+            if (savedPassword) userPasswordInput.value = savedPassword;
             if (savedUserName && savedPassword && lastConnected) {
-                const hourAgo = Date.now() - (60 * 60 * 1000);
-                if (parseInt(lastConnected) > hourAgo) {
+                const hourAgo = Date.now() - 60*60*1000;
+                if (+lastConnected > hourAgo) {
                     setTimeout(() => {
                         if (micPermissionBtn.textContent.includes('✅')) {
                             connectToServer();
@@ -583,85 +257,53 @@
             }
         }
 
-        // Service Worker
+        // ===== Service Worker =====
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', async () => {
-                try {
-                    swRegistration = await navigator.serviceWorker.register('/sw.js');
-                    console.log('SW registered');
-                } catch (error) {
-                    console.log('SW registration failed:', error);
-                }
+                try { swRegistration = await navigator.serviceWorker.register('/sw.js'); }
+                catch (e) { console.log('SW registration failed:', e); }
             });
         }
 
-        // Wake Mode
+        // ===== Wake / Keep Alive =====
         async function enableWakeMode() {
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', ()=>{ wakeLock=null; });
                 }
-                
                 keepAliveInterval = setInterval(() => {
-                    if (socket && socket.connected) {
-                        socket.emit('ping');
-                    }
-                }, 5000);
-                
-            } catch (error) {
-                console.log('Wake mode error:', error);
-            }
+                    if (socket?.connected) socket.emit('ping');
+                    if (socket?.connected) socket.emit('client_ping', Date.now()); // שכבה נוספת
+                }, 12000);
+            } catch (e) { console.log('Wake mode error:', e); }
         }
-
         function disableWakeMode() {
-            if (wakeLock) {
-                wakeLock.release();
-                wakeLock = null;
-            }
-            
-            if (keepAliveInterval) {
-                clearInterval(keepAliveInterval);
-                keepAliveInterval = null;
-            }
+            try { wakeLock?.release(); } catch(_) {}
+            wakeLock = null;
+            if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
         }
 
-        // מיקרופון
+        // ===== מיקרופון =====
         async function requestMicPermission() {
             try {
                 micPermissionBtn.textContent = '🔄 מבקש הרשאה...';
                 micPermissionBtn.disabled = true;
-                
                 if (isMobile) {
                     micPermissionBtn.textContent = '✅ מובייל מוכן';
                     connectBtn.disabled = false;
                     showToast('במובייל המיקרופון יאושר בעת החיבור', 'info');
                     return;
                 }
-                
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
-                        sampleRate: 44100,
-                        channelCount: 1
-                    } 
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true, sampleRate:44100, channelCount:1 }
                 });
-                
-                if (audioStream) {
-                    audioStream.getTracks().forEach(track => track.stop());
-                }
+                audioStream?.getTracks().forEach(t => t.stop());
                 audioStream = stream;
-                
                 micPermissionBtn.textContent = '✅ מיקרופון מאושר';
                 connectBtn.disabled = false;
-                
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 showToast('מיקרופון מאושר בהצלחה!', 'success');
-                
             } catch (error) {
                 if (isMobile) {
                     micPermissionBtn.textContent = '⚠️ ינסה בחיבור';
@@ -674,175 +316,122 @@
                 }
             }
         }
-
         async function initializeAudio() {
             if (audioStream) {
-                pttButton.disabled = false;
-                pttButton.className = 'ptt-button ptt-ready';
-                return;
+                pttButton.disabled = false; pttButton.className = 'ptt-button ptt-ready'; return;
             }
-            
             try {
-                const constraints = {
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
-                        sampleRate: isMobile ? 22050 : 44100,
-                        channelCount: 1
-                    }
-                };
-                
+                const constraints = { audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true, sampleRate:isMobile?22050:44100, channelCount:1 } };
                 audioStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                
-                pttButton.disabled = false;
-                pttButton.className = 'ptt-button ptt-ready';
-                
-            } catch (error) {
-                showToast('שגיאה בגישה למיקרופון', 'error');
-            }
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                pttButton.disabled = false; pttButton.className = 'ptt-button ptt-ready';
+            } catch { showToast('שגיאה בגישה למיקרופון', 'error'); }
         }
 
-        // חיבור לשרת
+        // ===== חיבור לשרת =====
         function connectToServer() {
             userName = userNameInput.value.trim() || `User_${Math.random().toString(36).substr(2, 6)}`;
             userPassword = userPasswordInput.value.trim();
-            
-            if (!userPassword) {
-                showToast('חובה להזין סיסמה', 'error');
-                return;
-            }
-            
+            if (!userPassword) { showToast('חובה להזין סיסמה', 'error'); return; }
+
             const serverAddress = window.location.origin;
-            
-            if (socket) {
-                socket.disconnect();
-            }
+            socket?.disconnect();
 
             connectBtn.disabled = true;
             connectBtn.textContent = 'מתחבר...';
 
             try {
                 socket = io(serverAddress, {
-                    timeout: 60000,
-                    forceNew: true,
-                    reconnection: true,
-                    reconnectionAttempts: Infinity,
-                    reconnectionDelay: 1000,
-                    reconnectionDelayMax: 5000,
+                    timeout: 60000, forceNew: true,
+                    reconnection: true, reconnectionAttempts: Infinity,
+                    reconnectionDelay: 1000, reconnectionDelayMax: 5000,
                     transports: ['websocket', 'polling'],
-                    pingInterval: 10000,
-                    pingTimeout: 30000
-                });
-                
-                socket.on('connect', () => {
-                    socket.emit('authenticate', { 
-                        name: userName, 
-                        password: userPassword 
-                    });
+                    pingInterval: 10000, pingTimeout: 30000
                 });
 
+                socket.on('connect', () => { socket.emit('authenticate', { name: userName, password: userPassword }); });
                 socket.on('auth_success', () => {
-                    isConnected = true;
-                    saveConnectionDetails();
-                    showToast(`התחברת בהצלחה כ-${userName}`, 'success');
-                    
-                    connectionScreen.style.display = 'none';
-                    mainInterface.classList.add('active');
-                    disconnectBtn.style.display = 'block';
-                    
+                    isConnected = true; saveConnectionDetails(); showToast(`התחברת בהצלחה כ-${userName}`, 'success');
+                    connectionScreen.style.display = 'none'; mainInterface.classList.add('active'); disconnectBtn.style.display = 'block';
                     socket.emit('user_join', { name: userName });
-                    initializeAudio();
-                    enableWakeMode();
-                    updateConnectionStatus();
+                    initializeAudio(); enableWakeMode(); updateConnectionStatus();
                 });
-
                 socket.on('auth_failed', (data) => {
                     showToast(data.message || 'סיסמה שגויה', 'error');
-                    connectBtn.disabled = false;
-                    connectBtn.textContent = 'התחבר';
-                    socket.disconnect();
+                    connectBtn.disabled = false; connectBtn.textContent = 'התחבר'; socket.disconnect();
                 });
-
-                socket.on('connect_error', (error) => {
-                    connectBtn.disabled = false;
-                    connectBtn.textContent = 'התחבר';
-                    showToast('שגיאה בחיבור לשרת', 'error');
+                socket.on('connect_error', () => {
+                    connectBtn.disabled = false; connectBtn.textContent = 'התחבר'; showToast('שגיאה בחיבור לשרת', 'error');
                 });
-
                 socket.on('disconnect', (reason) => {
                     console.log('Disconnected:', reason);
-                    
-                    if (reason === 'io server disconnect') {
-                        socket.connect();
-                    } else if (reason === 'transport close' || reason === 'transport error') {
-                        showToast('בעיית חיבור, מנסה להתחבר מחדש...', 'info');
-                    }
-                    
+                    if (reason === 'io server disconnect') socket.connect();
+                    else if (reason === 'transport close' || reason === 'transport error') showToast('בעיית חיבור, מנסה להתחבר מחדש...', 'info');
                     updateConnectionStatus();
                 });
-
-                socket.on('reconnect', (attemptNumber) => {
-                    console.log('Reconnected after', attemptNumber, 'attempts');
+                socket.on('reconnect', (n) => {
+                    console.log('Reconnected after', n, 'attempts');
                     showToast('החיבור חודש!', 'success');
                     socket.emit('authenticate', { name: userName, password: userPassword });
                 });
 
-                socket.on('users_count', (data) => {
-                    userCountSpan.textContent = data.count;
-                });
+                socket.on('users_count', (data) => { userCountSpan.textContent = data.count; });
 
-                socket.on('broadcast_started', (data) => {
+                // === ביפ לפני האזנה + שער/תור ===
+                socket.on('broadcast_started', async (data) => {
                     broadcastStatusDiv.textContent = 'מישהו משדר';
                     broadcasterNameSpan.textContent = data.broadcasterName;
                     receivingIndicator.classList.add('show');
-                    
-                    if (isMobile && navigator.vibrate) {
-                        navigator.vibrate(200);
-                    }
+
+                    receivingGateOpen = false; receivedQueue = [];
+
+                    // ביפ לפני שנשמע את השידור
+                    await playBeep(0.7);
+
+                    receivingGateOpen = true;
+                    // נרוקן תור אם התאסף בזמן הביפ
+                    for (const buf of receivedQueue) playAudio(buf);
+                    receivedQueue = [];
+
+                    if (isMobile && navigator.vibrate) navigator.vibrate(200);
                 });
 
-                socket.on('broadcast_ended', (data) => {
+                socket.on('broadcast_ended', () => {
                     broadcastStatusDiv.textContent = 'מוכן לשידור';
                     receivingIndicator.classList.remove('show');
-                    
-                    if (isMobile && navigator.vibrate) {
-                        navigator.vibrate([100, 100, 100]);
-                    }
+                    receivingGateOpen = false; receivedQueue = [];
+                    if (isMobile && navigator.vibrate) navigator.vibrate([100,100,100]);
                 });
 
+                // תואם לשרת – שני שמות אירועים:
                 socket.on('receive_audio', (data) => {
+                    const buf = data?.audioData;
+                    if (!buf) return;
                     if (!isBroadcasting) {
-                        playAudio(data.audioData);
+                        if (!receivingGateOpen) receivedQueue.push(buf);
+                        else playAudio(buf);
+                    }
+                });
+                socket.on('audio_chunk', (arrayBuffer) => {
+                    if (!isBroadcasting) {
+                        if (!receivingGateOpen) receivedQueue.push(arrayBuffer);
+                        else playAudio(arrayBuffer);
                     }
                 });
 
                 socket.on('broadcast_blocked', (data) => {
                     showToast(data.message, 'error');
-                    
                     broadcastOverlay.className = 'broadcast-overlay blocked';
-                    setTimeout(() => {
-                        broadcastOverlay.className = 'broadcast-overlay';
-                    }, 1500);
-                    
+                    setTimeout(() => { broadcastOverlay.className = 'broadcast-overlay'; }, 1500);
                     stopBroadcast();
-                    
-                    if (isMobile && navigator.vibrate) {
-                        navigator.vibrate([50, 50, 50, 50, 50]);
-                    }
+                    if (isMobile && navigator.vibrate) navigator.vibrate([50,50,50,50,50]);
                 });
 
-                socket.on('pong', () => {
-                    console.log('Pong received');
-                });
+                socket.on('pong', () => {});
+                socket.on('server_pong', () => {});
 
             } catch (error) {
-                connectBtn.disabled = false;
-                connectBtn.textContent = 'התחבר';
+                connectBtn.disabled = false; connectBtn.textContent = 'התחבר';
                 showToast('שגיאה ביצירת חיבור', 'error');
             }
         }
@@ -851,306 +440,172 @@
             mainInterface.classList.remove('active');
             connectionScreen.style.display = 'block';
             disconnectBtn.style.display = 'none';
-            connectBtn.disabled = false;
-            connectBtn.textContent = 'התחבר';
-            pttButton.disabled = true;
-            pttButton.className = 'ptt-button ptt-disabled';
-            broadcastingIndicator.classList.remove('show');
-            receivingIndicator.classList.remove('show');
+            connectBtn.disabled = false; connectBtn.textContent = 'התחבר';
+            pttButton.disabled = true; pttButton.className = 'ptt-button ptt-disabled';
+            broadcastingIndicator.classList.remove('show'); receivingIndicator.classList.remove('show');
         }
+        function disconnect() { socket?.disconnect(); disableWakeMode(); resetToConnectionScreen(); }
 
-        function disconnect() {
-            if (socket) {
-                socket.disconnect();
-            }
-            disableWakeMode();
-            resetToConnectionScreen();
-        }
-
-        // שידור
-        function startBroadcast() {
+        // ===== שידור =====
+        async function startBroadcast() {
             if (!isConnected || isBroadcasting) return;
 
             if (isIOS && audioContext && audioContext.state === 'suspended') {
-                audioContext.resume();
+                try { await audioContext.resume(); } catch {}
             }
-
             if (!audioStream) {
                 showToast('אין גישה למיקרופון', 'error');
                 broadcastOverlay.className = 'broadcast-overlay blocked';
-                setTimeout(() => {
-                    broadcastOverlay.className = 'broadcast-overlay';
-                }, 1000);
+                setTimeout(() => { broadcastOverlay.className = 'broadcast-overlay'; }, 1000);
                 return;
             }
 
+            // ביפ לפני השידור — ממתינים לסיום
+            broadcastStatusDiv.textContent = 'בקרוב מתחיל שידור… ביפ';
+            await playBeep(0.65);
+
             try {
-                playSound('mirsBeep', 0.6);
-                
                 audioChunks = [];
-                
                 let options = {};
-                if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                    options.mimeType = 'audio/webm;codecs=opus';
-                } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-                    options.mimeType = 'audio/webm';
-                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                    options.mimeType = 'audio/mp4';
-                }
-                
+                if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options.mimeType = 'audio/webm;codecs=opus';
+                else if (MediaRecorder.isTypeSupported('audio/webm')) options.mimeType = 'audio/webm';
+                else if (MediaRecorder.isTypeSupported('audio/mp4')) options.mimeType = 'audio/mp4';
+
                 mediaRecorder = new MediaRecorder(audioStream, options);
-
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunks.push(event.data);
-                    }
-                };
-
+                mediaRecorder.ondataavailable = (event) => { if (event.data?.size > 0) audioChunks.push(event.data); };
                 mediaRecorder.onstop = () => {
                     if (audioChunks.length > 0) {
                         const finalBlob = new Blob(audioChunks, { type: options.mimeType || 'audio/webm' });
-                        
                         const reader = new FileReader();
-                        reader.onload = () => {
-                            const arrayBuffer = reader.result;
-                            socket.emit('audio_stream', arrayBuffer);
-                        };
+                        reader.onload = () => { socket.emit('audio_stream', reader.result); };
                         reader.readAsArrayBuffer(finalBlob);
                     }
                 };
 
-                mediaRecorder.start();
+                // רק עכשיו מודיעים לכולם שהתחלנו לשדר
                 socket.emit('start_broadcast', { userName });
-                
+                mediaRecorder.start();
+
                 isBroadcasting = true;
                 pttButton.className = 'ptt-button ptt-active';
                 pttButton.textContent = '🎙️ משדר';
                 broadcastStatusDiv.textContent = 'אתה משדר';
                 broadcastingIndicator.classList.add('show');
-                
                 broadcastOverlay.className = 'broadcast-overlay recording';
-                
-                if (isMobile && navigator.vibrate) {
-                    navigator.vibrate(100);
-                }
-                
-            } catch (error) {
-                showToast('שגיאה בהתחלת שידור: ' + error.message, 'error');
+                if (isMobile && navigator.vibrate) navigator.vibrate(100);
+
+            } catch (err) {
+                showToast('שגיאה בהתחלת שידור: ' + err.message, 'error');
                 broadcastOverlay.className = 'broadcast-overlay blocked';
-                setTimeout(() => {
-                    broadcastOverlay.className = 'broadcast-overlay';
-                }, 1000);
+                setTimeout(() => { broadcastOverlay.className = 'broadcast-overlay'; }, 1000);
                 isBroadcasting = false;
             }
         }
-
         function stopBroadcast() {
             if (!isBroadcasting) return;
-
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-            
+            try { if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); } catch {}
             isBroadcasting = false;
             pttButton.className = 'ptt-button ptt-ready';
             pttButton.textContent = 'לחץ לשידור';
             broadcastStatusDiv.textContent = 'מוכן לשידור';
             broadcastingIndicator.classList.remove('show');
-            
             broadcastOverlay.className = 'broadcast-overlay';
-            
-            if (isMobile && navigator.vibrate) {
-                navigator.vibrate(50);
-            }
-            
-            setTimeout(() => {
-                socket.emit('end_broadcast');
-            }, 100);
+            if (isMobile && navigator.vibrate) navigator.vibrate(50);
+            setTimeout(() => { socket.emit('end_broadcast'); }, 100);
         }
 
-        // השמעת אודיו
+        // ===== השמעת אודיו (בלי ביפ כאן — הביפ כבר ב-broadcast_started) =====
         async function playAudio(audioData) {
             try {
-                playSound('mirsBeep', 0.7);
-                
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                
-                if (audioContext.state === 'suspended') {
-                    await audioContext.resume();
-                }
-                
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') await audioContext.resume();
+
                 broadcastOverlay.className = 'broadcast-overlay receiving';
-                setTimeout(() => {
-                    broadcastOverlay.className = 'broadcast-overlay';
-                }, 1000);
-                
+                setTimeout(() => { broadcastOverlay.className = 'broadcast-overlay'; }, 1000);
+
                 if (document.hidden) {
                     document.title = '🔊 שידור מתקבל - PTT';
-                    setTimeout(() => {
-                        document.title = 'PTT';
-                    }, 3000);
+                    setTimeout(() => { document.title = 'PTT'; }, 3000);
                 }
-                
-                const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
-                const source = audioContext.createBufferSource();
-                const gainNode = audioContext.createGain();
-                
-                source.buffer = audioBuffer;
-                gainNode.gain.value = document.hidden ? 2.0 : 1.0;
-                
-                source.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                source.start(0);
-                
-                if (isMobile && navigator.vibrate) {
-                    navigator.vibrate([300, 100, 300, 100, 300]);
-                }
-                
+
+                const buffer = await audioContext.decodeAudioData(audioData.slice(0));
+                const src = audioContext.createBufferSource();
+                const gain = audioContext.createGain();
+                src.buffer = buffer;
+                gain.gain.value = document.hidden ? 2.0 : 1.0;
+                src.connect(gain); gain.connect(audioContext.destination);
+                src.start(0);
+
+                if (isMobile && navigator.vibrate) navigator.vibrate([300, 100, 300]);
             } catch (error) {
+                // Fallback דרך <audio>
                 try {
-                    playSound('mirsBeep', 0.7);
-                    
                     const blob = new Blob([audioData], { type: 'audio/webm' });
-                    const audioUrl = URL.createObjectURL(blob);
-                    const audio = new Audio(audioUrl);
-                    
-                    audio.volume = 1.0;
-                    audio.preload = 'auto';
-                    
-                    audio.play().then(() => {
-                        audio.onended = () => URL.revokeObjectURL(audioUrl);
-                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = new Audio(url);
+                    a.volume = 1.0; a.preload = 'auto';
+                    a.play().then(() => { a.onended = () => URL.revokeObjectURL(url); }).catch(()=>{});
                 } catch (fallbackError) {
                     console.error('Audio playback failed:', fallbackError);
                 }
             }
         }
 
-        // עדכון סטטוס חיבור
+        // ===== סטטוס חיבור =====
         function updateConnectionStatus() {
-            const statusElement = document.getElementById('connectionStatus');
-            if (statusElement) {
-                statusElement.style.background = socket && socket.connected ? '#4CAF50' : '#f44336';
-                statusElement.style.boxShadow = `0 0 10px ${socket && socket.connected ? '#4CAF50' : '#f44336'}`;
-            }
+            const el = document.getElementById('connectionStatus');
+            const ok = socket && socket.connected;
+            el.style.background = ok ? '#4CAF50' : '#f44336';
+            el.style.boxShadow = `0 0 10px ${ok ? '#4CAF50' : '#f44336'}`;
         }
 
-        // אירועי PTT
+        // ===== אירועי PTT =====
         if (!isMobile) {
             pttButton.addEventListener('mousedown', startBroadcast);
             pttButton.addEventListener('mouseup', stopBroadcast);
             pttButton.addEventListener('mouseleave', stopBroadcast);
-            
             document.addEventListener('keydown', (e) => {
-                if (e.code === 'Space' && !isBroadcasting && isConnected) {
-                    e.preventDefault();
-                    startBroadcast();
-                }
+                if (e.code === 'Space' && !isBroadcasting && isConnected) { e.preventDefault(); startBroadcast(); }
             });
-
             document.addEventListener('keyup', (e) => {
-                if (e.code === 'Space' && isBroadcasting) {
-                    e.preventDefault();
-                    stopBroadcast();
-                }
+                if (e.code === 'Space' && isBroadcasting) { e.preventDefault(); stopBroadcast(); }
             });
-        }
-
-        if (isMobile) {
+        } else {
             let touchStarted = false;
-            
             pttButton.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                touchStarted = true;
-                setTimeout(() => {
-                    if (touchStarted) {
-                        startBroadcast();
-                    }
-                }, 50);
-            }, { passive: false });
-
-            pttButton.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                touchStarted = false;
-                stopBroadcast();
-            }, { passive: false });
-
-            pttButton.addEventListener('touchcancel', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                touchStarted = false;
-                stopBroadcast();
-            }, { passive: false });
-            
-            pttButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-            });
+                e.preventDefault(); e.stopPropagation(); touchStarted = true;
+                setTimeout(() => { if (touchStarted) startBroadcast(); }, 50);
+            }, { passive:false });
+            pttButton.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); touchStarted = false; stopBroadcast(); }, { passive:false });
+            pttButton.addEventListener('touchcancel', (e) => { e.preventDefault(); e.stopPropagation(); touchStarted = false; stopBroadcast(); }, { passive:false });
+            pttButton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
         }
 
-        // אירועי כפתורים
+        // ===== כפתורים =====
         micPermissionBtn.addEventListener('click', requestMicPermission);
         connectBtn.addEventListener('click', connectToServer);
         disconnectBtn.addEventListener('click', disconnect);
+        userNameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !connectBtn.disabled) connectToServer(); });
+        userPasswordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !connectBtn.disabled) connectToServer(); });
 
-        userNameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !connectBtn.disabled) {
-                connectToServer();
-            }
-        });
-
-        userPasswordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !connectBtn.disabled) {
-                connectToServer();
-            }
-        });
-
-        // אירועי חלון
+        // ===== חלון / נראות =====
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
-                console.log('App returned to foreground');
-                
-                if (audioContext && audioContext.state === 'suspended') {
-                    audioContext.resume();
-                }
-                
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
                 document.title = 'PTT';
             }
         });
-
-        window.addEventListener('online', () => {
-            console.log('Network is back online');
-            if (socket && !socket.connected) {
-                showToast('רשת זוהתה, מתחבר מחדש...', 'info');
-                socket.connect();
-            }
-        });
-
-        window.addEventListener('offline', () => {
-            console.log('Network went offline');
-            showToast('אין חיבור רשת', 'error');
-        });
-
-        window.addEventListener('beforeunload', () => {
-            if (socket) {
-                socket.disconnect();
-            }
-            disableWakeMode();
-        });
+        window.addEventListener('online', () => { if (socket && !socket.connected) { showToast('רשת זוהתה, מתחבר מחדש...', 'info'); socket.connect(); }});
+        window.addEventListener('offline', () => { showToast('אין חיבור רשת', 'error'); });
+        window.addEventListener('beforeunload', () => { socket?.disconnect(); disableWakeMode(); });
 
         if (isIOS) {
             document.addEventListener('touchstart', () => {
-                if (audioContext && audioContext.state === 'suspended') {
-                    audioContext.resume();
-                }
-            }, { once: true });
+                if (audioContext && audioContext.state === 'suspended') { audioContext.resume(); }
+            }, { once:true });
         }
 
-        // אתחול
+        // ===== אתחול =====
         window.addEventListener('load', () => {
             loadConnectionDetails();
             setInterval(updateConnectionStatus, 2000);
