@@ -42,6 +42,8 @@
     .toast.show{transform:translateY(0);opacity:1}.toast.success{background:#333;color:#fff}.toast.error{background:#f44336;color:#fff}
     .disconnect-btn{position:fixed;top:20px;right:20px;background:#fff;border:1px solid #e9ecef;border-radius:12px;color:#333;padding:12px 16px;cursor:pointer;font-size:.9rem;box-shadow:0 2px 10px rgba(0,0,0,.1)}
     #connectionStatus{position:fixed;top:10px;left:10px;width:10px;height:10px;border-radius:50%}
+    .broadcast-overlay{position:fixed;inset:0;pointer-events:none;opacity:0;transition:.2s}
+    .broadcast-overlay.receiving{background:rgba(33,150,243,.08);opacity:1}
   </style>
 </head>
 <body>
@@ -124,44 +126,55 @@
       try{ const src=sounds[key]; if(!src) return; const a=new Audio(src); a.volume=volume; a.play().catch(()=>{}); }catch{}
     }
 
-    // השמעת אודיו עם אפשרויות — ביפ/UI/רטט נשלטים בפרמטרים
-    async function playAudio(arrayBuffer, opts={beep:true, ui:true, vibrate:true}){
-      const { beep=true, ui=true, vibrate=true } = opts;
+    // עזר: זיהוי MIME בסיסי לבאקאפ נגן
+    function detectMime(arrayBuffer){
+      const u8 = new Uint8Array(arrayBuffer.slice(0,4));
+      // 'RIFF' = 52,49,46,46 => WAV
+      if (u8[0]===0x52 && u8[1]===0x49 && u8[2]===0x46 && u8[3]===0x46) return 'audio/wav';
+      return 'audio/webm'; // ברירת מחדל לצ'אנקים חיים
+    }
+
+    // השמעת אודיו עם אפשרויות — כברירת מחדל **בלי** ביפ/UI (צ'אנקים)
+    async function playAudio(arrayBuffer, opts={}){
+      const { beep=false, ui=false, vibrate=false } = opts;
       try{
         if (beep) playSound('mirsBeep', 0.7);
 
-        if (!audioContext) audioContext = new (window.AudioContext||window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') { try{ await audioContext.resume(); }catch{} }
-
-        if (ui){
-          // אפקט קל בלבד (לא חובה)
-          broadcastOverlay.className = 'broadcast-overlay receiving';
-          setTimeout(()=> broadcastOverlay.className = 'broadcast-overlay', 400);
-          if (document.hidden){
-            document.title = '🔊 שידור מתקבל - PTT';
-            setTimeout(()=> document.title='PTT', 1500);
+        // אם זה WAV (keepalive) — decodeAudioData עובד טוב; אחרת ניתן לנסות ואז ליפול לנגן
+        let decoded = false;
+        if (detectMime(arrayBuffer) === 'audio/wav'){
+          if (!audioContext) audioContext = new (window.AudioContext||window.webkitAudioContext)();
+          if (audioContext.state === 'suspended') { try{ await audioContext.resume(); }catch{} }
+          if (ui){
+            broadcastOverlay.className = 'broadcast-overlay receiving';
+            setTimeout(()=> broadcastOverlay.className = 'broadcast-overlay', 300);
           }
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+          const source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContext.destination);
+          source.start(0);
+          if (vibrate && isMobile && navigator.vibrate) navigator.vibrate([120,60,120]);
+          decoded = true;
         }
 
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-        const source = audioContext.createBufferSource();
-        const gainNode = audioContext.createGain();
-        source.buffer = audioBuffer;
-        gainNode.gain.value = document.hidden ? 1.8 : 1.0;
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        source.start(0);
-
-        if (vibrate && isMobile && navigator.vibrate){
-          navigator.vibrate([120, 60, 120]);
-        }
-      }catch(e){
-        // fallback לנגן דפדפן
-        try{
-          const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+        // אם לא דיקדנו (webm/opus), הפעלה דרך <audio>
+        if (!decoded){
+          const mime = detectMime(arrayBuffer); // צפוי 'audio/webm' בצ'אנקים חיים
+          const blob = new Blob([arrayBuffer], { type: mime });
           const url = URL.createObjectURL(blob);
           const a = new Audio(url);
-          await a.play();
+          await a.play().catch(()=>{});
+          setTimeout(()=> URL.revokeObjectURL(url), 1000);
+          if (vibrate && isMobile && navigator.vibrate) navigator.vibrate([120,60,120]);
+        }
+      }catch(e){
+        // ניסיון גיבוי נוסף: תמיד נגן כ-webm
+        try{
+          const blob = new Blob([arrayBuffer], { type: 'audio/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = new Audio(url);
+          await a.play().catch(()=>{});
           setTimeout(()=> URL.revokeObjectURL(url), 1000);
         }catch{}
       }
@@ -253,25 +266,40 @@
 
       socket.on('users_count', d => userCountSpan.textContent = d.count);
 
-      // התחלת שידור — דלג על keepalive
+      socket.on('broadcast_blocked', d => showToast(d?.message || 'משתמש אחר משדר כרגע','error'));
+
+      // התחלת שידור — דילוג על keepalive; ביפ + טוסט פעם אחת בתחילת השידור אצל מקבלים
       socket.on('broadcast_started', (data)=>{
-        if (isKeepaliveEvent(data)) return;
+        if (isKeepaliveEvent(data)) {
+          console.debug('[KA] broadcast_started (system)'); 
+          return;
+        }
+        const name = data?.broadcasterName || data?.broadcasterId || 'מישהו';
+        playSound('mirsBeep', 0.7);                         // ← ביפ חד־פעמי בתחילת קבלה
+        showToast(`🔊 ${name} משדר`, 'info', 1500);         // ← טוסט "מי משדר"
         broadcastStatusDiv.textContent='מישהו משדר';
+        if (isMobile && navigator.vibrate) navigator.vibrate(200);
       });
 
-      // סיום שידור — דלג על keepalive
+      // סיום שידור — דילוג על keepalive
       socket.on('broadcast_ended', (data)=>{
-        if (isKeepaliveEvent(data)) return;
+        if (isKeepaliveEvent(data)) {
+          console.debug('[KA] broadcast_ended (system)'); 
+          return;
+        }
+        const name = data?.broadcasterName || data?.broadcasterId || '';
+        showToast(name ? `✅ ${name} סיים לשדר` : '✅ השידור הסתיים', 'info', 1200);
         broadcastStatusDiv.textContent='מוכן לשידור';
       });
 
-      // קבלת אודיו — אם keepalive → בלי ביפ/רטט/UI
+      // קבלת אודיו — צ'אנקים: אף פעם לא ביפ/טוסט. keepalive נשאר שקט.
       socket.on('receive_audio', async (data)=>{
         if (!data || !data.audioData) return;
         if (isBroadcasting) return;
-
         const ka = isKeepaliveEvent(data);
-        await playAudio(data.audioData, { beep: !ka, ui: !ka, vibrate: !ka });
+        if (ka) console.debug(`[KA] received silent audio (${data.size ?? data.audioData?.byteLength ?? 'unknown'} bytes)`);
+        // נגן ללא ביפ/UI/רטט
+        await playAudio(data.audioData, { beep:false, ui:false, vibrate:false });
       });
     }
 
@@ -288,7 +316,7 @@
       if (!audioStream){ showToast('אין גישה למיקרופון','error'); return; }
 
       try{
-        // ביפ לפני שידור (רק לשולח)
+        // ביפ לשולח בלבד
         playSound('mirsBeep', 0.6);
 
         let options={};
@@ -296,7 +324,12 @@
         else if (MediaRecorder.isTypeSupported('audio/webm')) options.mimeType='audio/webm';
 
         mediaRecorder = new MediaRecorder(audioStream, options);
-        mediaRecorder.ondataavailable = async (e)=>{ if (e.data && e.data.size>0 && isBroadcasting){ const buf = await e.data.arrayBuffer(); socket.emit('audio_chunk', buf); } };
+        mediaRecorder.ondataavailable = async (e)=>{ 
+          if (e.data && e.data.size>0 && isBroadcasting){ 
+            const buf = await e.data.arrayBuffer(); 
+            socket.emit('audio_chunk', buf); 
+          } 
+        };
 
         socket.emit('start_broadcast');
         mediaRecorder.start(200); // צ'אנק כל ~200ms

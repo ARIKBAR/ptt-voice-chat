@@ -1,4 +1,4 @@
-// server.js — PTT + keepalive שקט + SW v4
+// server.js — PTT + keepalive שקט + לוגים + SW v4
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -60,7 +60,7 @@ app.get('/manifest.json', (req, res) => {
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.send(`
-    const CACHE_NAME = 'ptt-chat-v4'; // ← הוגדל כדי לשבור קאש ישן
+    const CACHE_NAME = 'ptt-chat-v4';
     const urlsToCache = ['/manifest.json','/assets/beep.mp3'];
 
     self.addEventListener('install', (event) => {
@@ -94,10 +94,6 @@ app.get('/sw.js', (req, res) => {
         return;
       }
       event.respondWith(caches.match(event.request).then(res => res || fetch(event.request)));
-    });
-
-    self.addEventListener('message', (event) => {
-      if (event.data && event.data.type === 'KEEP_ALIVE') {}
     });
   `);
 });
@@ -249,7 +245,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ====== keepalive שקט כל ~דקה ======
+// ====== keepalive שקט + לוגים ======
 function createWavSilence(durationMs = 200, sampleRate = 44100) {
   const numSamples = Math.floor(sampleRate * durationMs / 1000);
   const bytesPerSample = 2; // 16-bit mono
@@ -271,7 +267,6 @@ function createWavSilence(durationMs = 200, sampleRate = 44100) {
 
   buffer.write('data', 36);
   buffer.writeUInt32LE(dataSize, 40);
-  // גוף הנתונים שקט (אפסים)
 
   return buffer;
 }
@@ -282,13 +277,23 @@ let keepAliveTimer = null;
 function scheduleKeepAlive() {
   clearTimeout(keepAliveTimer);
   const jitter = Math.floor(Math.random() * 8000) - 4000; // ±4s
-  keepAliveTimer = setTimeout(doKeepAlive, Math.max(30000, KEEPALIVE_INTERVAL_MS + jitter));
+  const nextMs = Math.max(30000, KEEPALIVE_INTERVAL_MS + jitter);
+  console.debug(`🟦 [KEEPALIVE] scheduled in ~${Math.round(nextMs/1000)}s`);
+  keepAliveTimer = setTimeout(doKeepAlive, nextMs);
 }
+
 function doKeepAlive() {
   try {
-    if (currentBroadcaster) return scheduleKeepAlive();
-    if (connectedUsers.size === 0) return scheduleKeepAlive();
+    if (currentBroadcaster) {
+      console.debug('🟦 [KEEPALIVE] skipped: someone is broadcasting now');
+      return scheduleKeepAlive();
+    }
+    if (connectedUsers.size === 0) {
+      console.debug('🟦 [KEEPALIVE] skipped: no connected users');
+      return scheduleKeepAlive();
+    }
 
+    console.log(`🟦 [KEEPALIVE] start → sending ${SILENT_WAV.length} bytes of silence to ${connectedUsers.size} clients`);
     io.emit('broadcast_started', {
       broadcasterId: 'system',
       broadcasterName: 'system',
@@ -310,9 +315,11 @@ function doKeepAlive() {
         system: true,
         endTime: new Date()
       });
+      console.log('🟦 [KEEPALIVE] end');
       scheduleKeepAlive();
     }, 300);
   } catch (e) {
+    console.warn('🟦 [KEEPALIVE] error:', e?.message || e);
     scheduleKeepAlive();
   }
 }
