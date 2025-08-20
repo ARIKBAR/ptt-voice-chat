@@ -1,4 +1,4 @@
-// server.js — previous base + silent keepalive HLS-less
+// server.js — PTT + keepalive שקט + SW v4
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -9,10 +9,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
-  transports: ['websocket'],            // יציב יותר במובייל
+  transports: ['websocket'],
   allowUpgrades: true,
-  pingInterval: 15000,                  // שרת שולח ping כל 15ש'
-  pingTimeout: 20000,                   // ניתוק אחרי 20ש' ללא pong
+  pingInterval: 15000,
+  pingTimeout: 20000,
 });
 
 app.use(cors());
@@ -20,14 +20,14 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-// ===== אימות בסיס סיסמאות =====
+// ===== אימות בסיסי =====
 const authorizedUsers = {
   'password123': true,
   'admin': true,
   'user2024': true,
 };
 
-// ===== מצב/זיכרון =====
+// ===== מצב =====
 let connectedUsers = new Map();
 let currentBroadcaster = null;
 
@@ -56,11 +56,11 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
-// ===== Service Worker (HTML: network-first; סטטיים: cache-first) =====
+// ===== Service Worker =====
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.send(`
-    const CACHE_NAME = 'ptt-chat-v3';
+    const CACHE_NAME = 'ptt-chat-v4'; // ← הוגדל כדי לשבור קאש ישן
     const urlsToCache = ['/manifest.json','/assets/beep.mp3'];
 
     self.addEventListener('install', (event) => {
@@ -102,7 +102,7 @@ app.get('/sw.js', (req, res) => {
   `);
 });
 
-// ===== אל תאפשר Cache ל־client.html ברמת HTTP =====
+// ===== אין קאש ל־client.html =====
 app.get('/client.html', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -155,7 +155,6 @@ io.on('connection', (socket) => {
   let isAuthenticated = false;
   let authenticatedUser = null;
 
-  // שכבת keep-alive נוספת
   socket.on('client_ping', () => socket.emit('server_pong', Date.now()));
 
   // אימות
@@ -197,7 +196,7 @@ io.on('connection', (socket) => {
     socket.emit('broadcast_confirmed', { status: 'broadcasting' });
   });
 
-  // צ'אנקי אודיו חיים
+  // צ'אנקי אודיו
   socket.on('audio_chunk', (buffer) => {
     if (!isAuthenticated || currentBroadcaster !== socket.id) return;
     if (!buffer || buffer.byteLength === 0) return;
@@ -209,7 +208,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // קבלת בלוב מלא (fallback)
+  // fallback לבלוב יחיד
   socket.on('audio_stream', (buffer) => {
     if (!isAuthenticated || currentBroadcaster !== socket.id) return;
     if (!buffer || buffer.byteLength === 0) return;
@@ -250,43 +249,38 @@ io.on('connection', (socket) => {
   });
 });
 
-// ====== שידור פיקטיבי שקט (keep-alive) כל ~דקה ======
-// WAV שקט 200ms @ 44.1kHz, מונו, 16bit PCM
+// ====== keepalive שקט כל ~דקה ======
 function createWavSilence(durationMs = 200, sampleRate = 44100) {
   const numSamples = Math.floor(sampleRate * durationMs / 1000);
-  const bytesPerSample = 2; // 16-bit
+  const bytesPerSample = 2; // 16-bit mono
   const dataSize = numSamples * bytesPerSample;
   const buffer = Buffer.alloc(44 + dataSize);
 
-  // RIFF header
   buffer.write('RIFF', 0);
-  buffer.writeUInt32LE(36 + dataSize, 4);  // file size - 8
+  buffer.writeUInt32LE(36 + dataSize, 4);
   buffer.write('WAVE', 8);
 
-  // fmt  chunk
   buffer.write('fmt ', 12);
-  buffer.writeUInt32LE(16, 16);            // PCM chunk size
-  buffer.writeUInt16LE(1, 20);             // Audio format = PCM
-  buffer.writeUInt16LE(1, 22);             // Channels = 1
-  buffer.writeUInt32LE(sampleRate, 24);    // SampleRate
-  buffer.writeUInt32LE(sampleRate * bytesPerSample, 28); // ByteRate
-  buffer.writeUInt16LE(bytesPerSample, 32);               // BlockAlign
-  buffer.writeUInt16LE(16, 34);            // BitsPerSample
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * bytesPerSample, 28);
+  buffer.writeUInt16LE(bytesPerSample, 32);
+  buffer.writeUInt16LE(16, 34);
 
-  // data chunk
   buffer.write('data', 36);
   buffer.writeUInt32LE(dataSize, 40);
-  // (שקט = אפסים כבר מוקצה)
+  // גוף הנתונים שקט (אפסים)
 
   return buffer;
 }
 const SILENT_WAV = createWavSilence(200);
-const KEEPALIVE_INTERVAL_MS = 60000; // כ-דקה
+const KEEPALIVE_INTERVAL_MS = 60000;
 let keepAliveTimer = null;
 
 function scheduleKeepAlive() {
   clearTimeout(keepAliveTimer);
-  // ג'יטר קטן כדי לא להיות "מדויק מדי"
   const jitter = Math.floor(Math.random() * 8000) - 4000; // ±4s
   keepAliveTimer = setTimeout(doKeepAlive, Math.max(30000, KEEPALIVE_INTERVAL_MS + jitter));
 }
@@ -295,7 +289,6 @@ function doKeepAlive() {
     if (currentBroadcaster) return scheduleKeepAlive();
     if (connectedUsers.size === 0) return scheduleKeepAlive();
 
-    // “שידור” מערכת — לא מציק למשתמש (ללא UI/ביפ), אבל מזרים אודיו אמיתי
     io.emit('broadcast_started', {
       broadcasterId: 'system',
       broadcasterName: 'system',
