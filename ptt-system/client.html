@@ -193,6 +193,9 @@
 
         // ===== צליל =====
         const sounds = { mirsBeep: '/assets/beep.mp3' };
+        // זיהוי אירוע keepalive שמגיע מהשרת
+const isKeepaliveEvent = (d) => !!(d && (d.system === true || d.broadcasterId === 'system'));
+
 
         // נגן שמחזיר Promise כדי שאפשר יהיה await
         function playBeep(volume = 0.7) {
@@ -396,22 +399,28 @@
                     if (isMobile && navigator.vibrate) navigator.vibrate(200);
                 });
 
-                socket.on('broadcast_ended', () => {
-                    broadcastStatusDiv.textContent = 'מוכן לשידור';
-                    receivingIndicator.classList.remove('show');
-                    receivingGateOpen = false; receivedQueue = [];
-                    if (isMobile && navigator.vibrate) navigator.vibrate([100,100,100]);
-                });
+                socket.on('broadcast_ended', (data) => {
+    if (isKeepaliveEvent(data)) return; // ← keepalive: בלי UI/רטט
+
+    broadcastStatusDiv.textContent = 'מוכן לשידור';
+    receivingIndicator.classList.remove('show');
+
+    if (isMobile && navigator.vibrate) {
+        navigator.vibrate([100, 100, 100]);
+    }
+});
+
 
                 // תואם לשרת – שני שמות אירועים:
                 socket.on('receive_audio', (data) => {
-                    const buf = data?.audioData;
-                    if (!buf) return;
-                    if (!isBroadcasting) {
-                        if (!receivingGateOpen) receivedQueue.push(buf);
-                        else playAudio(buf);
-                    }
-                });
+    if (!data || !data.audioData) return;
+    if (isBroadcasting) return;
+
+    const isKA = isKeepaliveEvent(data);
+    // ב-keepalive מנגנים שקט בלי ביפ/רטט/אוברליי
+    playAudio(data.audioData, { beep: !isKA, ui: !isKA, vibrate: !isKA });
+});
+
                 socket.on('audio_chunk', (arrayBuffer) => {
                     if (!isBroadcasting) {
                         if (!receivingGateOpen) receivedQueue.push(arrayBuffer);
@@ -515,41 +524,75 @@
         }
 
         // ===== השמעת אודיו (בלי ביפ כאן — הביפ כבר ב-broadcast_started) =====
-        async function playAudio(audioData) {
-            try {
-                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioContext.state === 'suspended') await audioContext.resume();
+        async function playAudio(audioData, opts = {}) {
+    const {
+        beep = true,
+        ui = true,
+        vibrate = true,
+    } = opts;
 
-                broadcastOverlay.className = 'broadcast-overlay receiving';
-                setTimeout(() => { broadcastOverlay.className = 'broadcast-overlay'; }, 1000);
+    try {
+        // ביפ לפני השמעה – יופעל רק אם beep=true
+        if (beep) {
+            playSound('mirsBeep', 0.7);
+        }
 
-                if (document.hidden) {
-                    document.title = '🔊 שידור מתקבל - PTT';
-                    setTimeout(() => { document.title = 'PTT'; }, 3000);
-                }
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
 
-                const buffer = await audioContext.decodeAudioData(audioData.slice(0));
-                const src = audioContext.createBufferSource();
-                const gain = audioContext.createGain();
-                src.buffer = buffer;
-                gain.gain.value = document.hidden ? 2.0 : 1.0;
-                src.connect(gain); gain.connect(audioContext.destination);
-                src.start(0);
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
 
-                if (isMobile && navigator.vibrate) navigator.vibrate([300, 100, 300]);
-            } catch (error) {
-                // Fallback דרך <audio>
-                try {
-                    const blob = new Blob([audioData], { type: 'audio/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = new Audio(url);
-                    a.volume = 1.0; a.preload = 'auto';
-                    a.play().then(() => { a.onended = () => URL.revokeObjectURL(url); }).catch(()=>{});
-                } catch (fallbackError) {
-                    console.error('Audio playback failed:', fallbackError);
-                }
+        // UI רק אם ui=true (לא ב-keepalive)
+        if (ui) {
+            broadcastOverlay.className = 'broadcast-overlay receiving';
+            setTimeout(() => {
+                broadcastOverlay.className = 'broadcast-overlay';
+            }, 1000);
+
+            if (document.hidden) {
+                document.title = '🔊 שידור מתקבל - PTT';
+                setTimeout(() => {
+                    document.title = 'PTT';
+                }, 3000);
             }
         }
+
+        const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
+        const source = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+
+        source.buffer = audioBuffer;
+        gainNode.gain.value = document.hidden ? 2.0 : 1.0; // אפשר להשאיר כמו שהיה
+
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        source.start(0);
+
+        // רטט רק אם vibrate=true (לא ב-keepalive)
+        if (vibrate && isMobile && navigator.vibrate) {
+            navigator.vibrate([300, 100, 300, 100, 300]);
+        }
+    } catch (error) {
+        // Fallback נגן דפדפן, גם כאן בלי ביפ/אינדיקציה נוספת
+        try {
+            const blob = new Blob([audioData], { type: 'audio/webm' });
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+
+            audio.volume = 1.0;
+            audio.preload = 'auto';
+
+            await audio.play();
+            audio.onended = () => URL.revokeObjectURL(audioUrl);
+        } catch (fallbackError) {
+            console.error('Audio playback failed:', fallbackError);
+        }
+    }
+}
+
 
         // ===== סטטוס חיבור =====
         function updateConnectionStatus() {
