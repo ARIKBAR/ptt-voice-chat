@@ -1,4 +1,4 @@
-// server.js — PTT + keepalive שקט + לוגים + SW v4
+// server.js — previous base + silent keepalive HLS-less
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -9,10 +9,10 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
-  transports: ['websocket'],
+  transports: ['websocket'],            // יציב יותר במובייל
   allowUpgrades: true,
-  pingInterval: 15000,
-  pingTimeout: 20000,
+  pingInterval: 15000,                  // שרת שולח ping כל 15ש'
+  pingTimeout: 20000,                   // ניתוק אחרי 20ש' ללא pong
 });
 
 app.use(cors());
@@ -20,14 +20,14 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-// ===== אימות בסיסי =====
+// ===== אימות בסיס סיסמאות =====
 const authorizedUsers = {
   'password123': true,
   'admin': true,
   'user2024': true,
 };
 
-// ===== מצב =====
+// ===== מצב/זיכרון =====
 let connectedUsers = new Map();
 let currentBroadcaster = null;
 
@@ -56,11 +56,11 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
-// ===== Service Worker =====
+// ===== Service Worker (HTML: network-first; סטטיים: cache-first) =====
 app.get('/sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.send(`
-    const CACHE_NAME = 'ptt-chat-v4';
+    const CACHE_NAME = 'ptt-chat-v3';
     const urlsToCache = ['/manifest.json','/assets/beep.mp3'];
 
     self.addEventListener('install', (event) => {
@@ -95,10 +95,14 @@ app.get('/sw.js', (req, res) => {
       }
       event.respondWith(caches.match(event.request).then(res => res || fetch(event.request)));
     });
+
+    self.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'KEEP_ALIVE') {}
+    });
   `);
 });
 
-// ===== אין קאש ל־client.html =====
+// ===== אל תאפשר Cache ל־client.html ברמת HTTP =====
 app.get('/client.html', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -151,6 +155,7 @@ io.on('connection', (socket) => {
   let isAuthenticated = false;
   let authenticatedUser = null;
 
+  // שכבת keep-alive נוספת
   socket.on('client_ping', () => socket.emit('server_pong', Date.now()));
 
   // אימות
@@ -192,7 +197,7 @@ io.on('connection', (socket) => {
     socket.emit('broadcast_confirmed', { status: 'broadcasting' });
   });
 
-  // צ'אנקי אודיו
+  // צ'אנקי אודיו חיים
   socket.on('audio_chunk', (buffer) => {
     if (!isAuthenticated || currentBroadcaster !== socket.id) return;
     if (!buffer || buffer.byteLength === 0) return;
@@ -204,7 +209,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // fallback לבלוב יחיד
+  // קבלת בלוב מלא (fallback)
   socket.on('audio_stream', (buffer) => {
     if (!isAuthenticated || currentBroadcaster !== socket.id) return;
     if (!buffer || buffer.byteLength === 0) return;
@@ -245,55 +250,54 @@ io.on('connection', (socket) => {
   });
 });
 
-// ====== keepalive שקט + לוגים ======
+// ====== שידור פיקטיבי שקט (keep-alive) כל ~דקה ======
+// WAV שקט 200ms @ 44.1kHz, מונו, 16bit PCM
 function createWavSilence(durationMs = 200, sampleRate = 44100) {
   const numSamples = Math.floor(sampleRate * durationMs / 1000);
-  const bytesPerSample = 2; // 16-bit mono
+  const bytesPerSample = 2; // 16-bit
   const dataSize = numSamples * bytesPerSample;
   const buffer = Buffer.alloc(44 + dataSize);
 
+  // RIFF header
   buffer.write('RIFF', 0);
-  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.writeUInt32LE(36 + dataSize, 4);  // file size - 8
   buffer.write('WAVE', 8);
 
+  // fmt  chunk
   buffer.write('fmt ', 12);
-  buffer.writeUInt32LE(16, 16);
-  buffer.writeUInt16LE(1, 20);
-  buffer.writeUInt16LE(1, 22);
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(sampleRate * bytesPerSample, 28);
-  buffer.writeUInt16LE(bytesPerSample, 32);
-  buffer.writeUInt16LE(16, 34);
+  buffer.writeUInt32LE(16, 16);            // PCM chunk size
+  buffer.writeUInt16LE(1, 20);             // Audio format = PCM
+  buffer.writeUInt16LE(1, 22);             // Channels = 1
+  buffer.writeUInt32LE(sampleRate, 24);    // SampleRate
+  buffer.writeUInt32LE(sampleRate * bytesPerSample, 28); // ByteRate
+  buffer.writeUInt16LE(bytesPerSample, 32);               // BlockAlign
+  buffer.writeUInt16LE(16, 34);            // BitsPerSample
 
+  // data chunk
   buffer.write('data', 36);
   buffer.writeUInt32LE(dataSize, 40);
+  // (שקט = אפסים כבר מוקצה)
 
   return buffer;
 }
 const SILENT_WAV = createWavSilence(200);
-const KEEPALIVE_INTERVAL_MS = 60000;
+const KEEPALIVE_INTERVAL_MS = 60000; // כ-דקה
 let keepAliveTimer = null;
 
 function scheduleKeepAlive() {
   clearTimeout(keepAliveTimer);
+  // ג'יטר קטן כדי לא להיות "מדויק מדי"
   const jitter = Math.floor(Math.random() * 8000) - 4000; // ±4s
-  const nextMs = Math.max(30000, KEEPALIVE_INTERVAL_MS + jitter);
-  console.debug(`🟦 [KEEPALIVE] scheduled in ~${Math.round(nextMs/1000)}s`);
-  keepAliveTimer = setTimeout(doKeepAlive, nextMs);
+  keepAliveTimer = setTimeout(doKeepAlive, Math.max(30000, KEEPALIVE_INTERVAL_MS + jitter));
 }
-
 function doKeepAlive() {
   try {
-    if (currentBroadcaster) {
-      console.debug('🟦 [KEEPALIVE] skipped: someone is broadcasting now');
-      return scheduleKeepAlive();
-    }
-    if (connectedUsers.size === 0) {
-      console.debug('🟦 [KEEPALIVE] skipped: no connected users');
-      return scheduleKeepAlive();
-    }
+    if (currentBroadcaster) return scheduleKeepAlive();
+    if (connectedUsers.size === 0) return scheduleKeepAlive();
 
-    console.log(`🟦 [KEEPALIVE] start → sending ${SILENT_WAV.length} bytes of silence to ${connectedUsers.size} clients`);
+    console.log(`🟦 [KEEPALIVE] sending silent packet to ${connectedUsers.size} clients (${SILENT_WAV.length} bytes)`);
+
+    // “שידור” מערכת — לא מציק למשתמש (ללא UI/ביפ), אבל מזרים אודיו אמיתי
     io.emit('broadcast_started', {
       broadcasterId: 'system',
       broadcasterName: 'system',
@@ -315,11 +319,9 @@ function doKeepAlive() {
         system: true,
         endTime: new Date()
       });
-      console.log('🟦 [KEEPALIVE] end');
       scheduleKeepAlive();
     }, 300);
   } catch (e) {
-    console.warn('🟦 [KEEPALIVE] error:', e?.message || e);
     scheduleKeepAlive();
   }
 }
